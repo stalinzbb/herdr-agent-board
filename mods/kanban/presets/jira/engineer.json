@@ -1,0 +1,30 @@
+{
+  "about": "An engineer: your tickets, what's waiting in review, and your bugs, across one or more projects.",
+  "vars": {
+    "projects": null,
+    "review_statuses": ["Code Review"],
+    "bug_type": "Bug"
+  },
+  "refresh_minutes": 30,
+  "work_hours": [8, 19],
+  "digest_at": 8,
+  "stale_days": 5,
+  "old_days": 60,
+  "views": [
+    { "id": "work", "label": "My work",
+      "jql": "project in ({{projects}}) AND assignee = currentUser() AND issuetype != \"{{bug_type}}\" AND (statusCategory != Done OR updated >= -14d) ORDER BY updated DESC" },
+    { "id": "review", "label": "In review",
+      "jql": "project in ({{projects}}) AND status in ({{review_statuses}}) AND (assignee = currentUser() OR reporter = currentUser() OR watcher = currentUser()) ORDER BY updated DESC" },
+    { "id": "bugs", "label": "Bugs",
+      "jql": "project in ({{projects}}) AND issuetype = \"{{bug_type}}\" AND assignee = currentUser() AND (statusCategory != Done OR updated >= -14d) ORDER BY priority DESC, updated DESC" },
+    { "id": "recent", "label": "Recent", "jql": "issue in issueHistory() ORDER BY lastViewed DESC" }
+  ],
+  "tabs": [
+    { "id": "today", "label": "Today" },
+    { "id": "work", "label": "My work", "sections": [ { "view": "work", "group": "status" } ] },
+    { "id": "review", "label": "Review", "sections": [ { "view": "review", "group": "parent" } ] },
+    { "id": "bugs", "label": "Bugs", "sections": [ { "view": "bugs", "group": "status" } ] },
+    { "id": "recent", "label": "Recent", "sections": [ { "view": "recent" } ] }
+  ],
+  "today_tabs": ["work", "review", "bugs"]
+}

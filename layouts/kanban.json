@@ -1,0 +1,199 @@
+{
+  "id": "root",
+  "type": "column",
+  "titlebar": "none",
+  "traffic_lights": [
+    14,
+    15
+  ],
+  "theme": "graphite",
+  "colors": {
+    "background": "#111111",
+    "canvas": "#0c0c0c",
+    "chrome": "#141414",
+    "surface": "#1a1a1a",
+    "raised": "#212121",
+    "popover": "#1a1a1a",
+    "hover": "#ffffff0f",
+    "selected": "#ffffff14",
+    "border": "#232323",
+    "input": "#333333",
+    "foreground": "#ededed",
+    "muted": "#b4b4b4",
+    "dim": "#8a8a8a",
+    "accent": "#4c9aff",
+    "working": "#e2b340",
+    "blocked": "#e5566f",
+    "done": "#3fc07a",
+    "idle": "#6b6b6b"
+  },
+  "background": "canvas",
+  "terminal_padding": [
+    14,
+    12
+  ],
+  "children": [
+    {
+      "id": "board-bar",
+      "type": "block",
+      "size": {
+        "px": 48
+      },
+      "window_drag": true,
+      "content": {
+        "mod": "kanban",
+        "props": {
+          "role": "bar"
+        }
+      }
+    },
+    {
+      "id": "body",
+      "type": "row",
+      "divider": {
+        "width": 1,
+        "color": "border"
+      },
+      "children": [
+        {
+          "id": "work",
+          "type": "column",
+          "children": [
+            {
+              "id": "board",
+              "type": "block",
+              "size": {
+                "weight": 2
+              },
+              "min": 170,
+              "content": {
+                "mod": "kanban",
+                "props": {
+                  "role": "board"
+                }
+              }
+            },
+            {
+              "id": "main",
+              "type": "block",
+              "size": {
+                "weight": 3
+              },
+              "min": 160,
+              "padding": [
+                0,
+                8
+              ],
+              "content": {
+                "tab": "active",
+                "pane": {
+                  "gap": 8,
+                  "radius": 16,
+                  "background": "background",
+                  "lone": true,
+                  "border": {
+                    "width": 1,
+                    "color": "border"
+                  },
+                  "focus": {
+                    "width": 1,
+                    "color": "input"
+                  },
+                  "header": {
+                    "content": {
+                      "mod": "kanban-pane"
+                    },
+                    "height": 34,
+                    "position": "top",
+                    "reveal": "always"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": "rail",
+          "type": "column",
+          "size": {
+            "px": 364
+          },
+          "min": 260,
+          "max": 560,
+          "background": "chrome",
+          "children": [
+            {
+              "id": "rail-tabs",
+              "type": "block",
+              "size": {
+                "px": 40
+              },
+              "content": {
+                "mod": "kanban",
+                "props": {
+                  "role": "railtabs"
+                }
+              }
+            },
+            {
+              "id": "rail-body",
+              "type": "stack",
+              "active": "dev",
+              "children": [
+                {
+                  "id": "dev",
+                  "type": "block",
+                  "content": {
+                    "mod": "kanban",
+                    "props": {
+                      "role": "rail"
+                    }
+                  }
+                },
+                {
+                  "id": "jira",
+                  "type": "block",
+                  "content": {
+                    "mod": "kanban",
+                    "props": {
+                      "role": "jira"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "status",
+      "type": "row",
+      "size": {
+        "px": 28
+      },
+      "children": [
+        {
+          "id": "status-main",
+          "type": "block",
+          "content": {
+            "mod": "workspace-status"
+          }
+        },
+        {
+          "id": "usage",
+          "type": "block",
+          "size": {
+            "px": 440
+          },
+          "content": {
+            "mod": "kanban",
+            "props": {
+              "role": "usage"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

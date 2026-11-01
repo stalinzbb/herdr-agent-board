@@ -1,0 +1,11 @@
+{
+  "prompts": [
+    { "label": "Run tests and fix", "text": "Run the tests for what you changed and fix any failures." },
+    { "label": "Typecheck and lint", "text": "Run typecheck and lint, then fix what fails." },
+    { "label": "Status update", "text": "In a few lines: what have you changed so far, what's left, and is anything blocking you?" },
+    { "label": "Review the diff", "text": "Review the current uncommitted diff for bugs and anything that breaks our repo rules, before I commit." },
+    { "label": "Commit (no push)", "text": "Commit what you have with a Conventional Commit message. Don't push." },
+    { "label": "Write PR description", "text": "Write the PR description for this branch, following the repo's PR rules." },
+    { "label": "Pause", "text": "Stop at a safe point and wait for me." }
+  ]
+}

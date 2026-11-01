@@ -1,0 +1,42 @@
+{
+  "about": "A product designer who also prototypes: design tickets in one project, dev work (features, spikes) and design QA in another.",
+  "vars": {
+    "design": null,
+    "dev": null,
+    "spike_type": "Technical Spike",
+    "subtask_types": ["Sub-bug", "General Subtask", "UI sub-task"],
+    "qa_types": ["Sub-bug", "UI sub-task"],
+    "qa_title": "Design Review",
+    "design_done": "Ready for Dev",
+    "design_todo": "Ready for Design"
+  },
+  "refresh_minutes": 30,
+  "work_hours": [8, 19],
+  "digest_at": 8,
+  "stale_days": 5,
+  "old_days": 60,
+  "views": [
+    { "id": "design", "label": "Design",
+      "jql": "project = {{design}} AND (assignee = currentUser() OR reporter = currentUser()) AND (statusCategory != Done OR updated >= -14d) ORDER BY updated DESC" },
+    { "id": "features", "label": "Features",
+      "jql": "project = {{dev}} AND assignee = currentUser() AND issuetype not in (\"{{spike_type}}\", {{subtask_types}}) AND (statusCategory != Done OR updated >= -14d) ORDER BY updated DESC" },
+    { "id": "proto", "label": "Prototypes",
+      "jql": "project = {{dev}} AND issuetype = \"{{spike_type}}\" AND (assignee = currentUser() OR reporter = currentUser()) AND (statusCategory != Done OR updated >= -30d) ORDER BY updated DESC" },
+    { "id": "qa", "label": "Design QA", "max": 50,
+      "jql": "project = {{dev}} AND (issuetype in ({{qa_types}}) OR summary ~ \"{{qa_title}}\") AND (reporter = currentUser() OR assignee = currentUser()) AND updated >= -45d ORDER BY updated DESC" },
+    { "id": "recent", "label": "Recent", "jql": "issue in issueHistory() ORDER BY lastViewed DESC" }
+  ],
+  "tabs": [
+    { "id": "today", "label": "Today" },
+    { "id": "design", "label": "Design", "sections": [
+      { "view": "design", "group": "status", "pair_migrate": true,
+        "status_map": { "{{design_done}}": "done", "{{design_todo}}": "new", "Backlog": "new" } } ] },
+    { "id": "dev", "label": "Dev", "sections": [
+      { "view": "features", "label": "Features", "group": "status" },
+      { "view": "proto", "label": "Prototypes", "group": "status" } ] },
+    { "id": "qa", "label": "Design QA", "sections": [
+      { "view": "qa", "group": "parent", "title_from_parent": "{{qa_title}}" } ] },
+    { "id": "recent", "label": "Recent", "sections": [ { "view": "recent" } ] }
+  ],
+  "today_tabs": ["design", "qa", "dev"]
+}

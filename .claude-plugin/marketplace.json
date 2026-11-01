@@ -1,0 +1,11 @@
+{
+  "name": "herdr-agent-board",
+  "owner": { "name": "Stalin Thomas" },
+  "plugins": [
+    {
+      "name": "herdr-agent-board",
+      "source": "./",
+      "description": "Set up the Herdr board: Jira panel through your Atlassian connector, dev servers, Claude usage stats."
+    }
+  ]
+}

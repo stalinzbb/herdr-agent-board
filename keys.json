@@ -1,0 +1,12 @@
+{
+  "layout:kanban": {
+    "cmd-b": "layout.toggle:board",
+    "cmd-shift-k": "layout.switch:main",
+    "cmd-shift-e": "kanban.dev",
+    "cmd-shift-j": "kanban.jira",
+    "cmd-shift-u": "kanban.usage"
+  },
+  "layout:main": {
+    "cmd-shift-k": "layout.switch:kanban"
+  }
+}
