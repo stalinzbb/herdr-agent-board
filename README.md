@@ -3,7 +3,7 @@
 ![Herdr agent board](preview.png)
 
 A layout for [Herdr](https://herdr.dev): your agent tabs as a kanban board, a Dev panel for servers and
-simulators, a Jira panel fed through Claude's Atlassian connector, Claude stats in each pane header, and
+simulators, a Tasks panel (Jira, fed through Claude's Atlassian connector), Claude stats in each pane header, and
 long-term Claude usage and cost stats.
 
 ## Install
@@ -23,6 +23,15 @@ Then, in Claude Code, add this repo as a plugin and run the setup skill:
 
 Setup finds your Atlassian site, looks at your recent tickets to pick a Jira preset, finds your dev
 servers, and offers to add the Claude session hook. You can skip it and edit the files below yourself.
+
+Everyone's steps are different, so the Tasks panel can be shaped to yours:
+
+```
+/herdr-agent-board:workflow
+```
+
+It looks at your recent tickets, asks what kinds of work you track and what each status means to you
+(for example "Ready for Dev" is done for a designer, "Won't Do" is hidden), then writes the tabs.
 
 ## Where things live
 
@@ -44,7 +53,7 @@ each panel opens yours, making it from the default the first time.
 - Changed something in Herdr directly (or had an agent do it)? `./install.sh --pull` copies it back
   into the repo so you can commit it.
 
-## Jira presets
+## Tasks panel: Jira presets
 
 `jira.json` names a preset from `mods/kanban/presets/jira/` and fills its vars:
 
@@ -63,8 +72,9 @@ each panel opens yours, making it from the default the first time.
 | `engineer` | Today · My work · Review · Bugs · Recent | `projects` (a list); optional `review_statuses`, `bug_type` |
 | `mine` | Today · Assigned · Reported · Recent | none |
 
-A list var becomes a quoted JQL list. Any other top-level key you set (`views`, `tabs`, `today_tabs`,
-`digest_at`, `work_hours`, …) replaces the preset's. To see the result:
+A list var becomes a quoted JQL list. Any other top-level key you set (`name`, `default_tab`, `views`,
+`tabs`, `today_tabs`, `digest_at`, `work_hours`, …) replaces the preset's; `skills/workflow/SKILL.md`
+explains each, including `status_map` (`new` / `indeterminate` / `done` / `hide` per status). To see the result:
 `python3 -I ~/.config/herdr-app/mods/kanban/jira-sync.py config`.
 
 Jira calls go through `claude -p --model haiku` with only the connector's Jira tools allowed. The
@@ -86,4 +96,7 @@ go back. It makes no Jira calls and changes nothing.
 
 ## Keys
 
-⌘⇧K board ⇄ classic · ⌘B hide the board · ⌘⇧E Dev · ⌘⇧J Jira · ⌘⇧U usage stats
+⌘⇧K board ⇄ classic · ⌘B hide the board · ⌘⇧E Dev · ⌘⇧J Tasks · ⌘⇧U usage stats
+
+`herdr-app do kanban.tasks_<tab id>` opens the Tasks panel on a tab (for example `kanban.tasks_dev`),
+and can be bound to a key in `keys.json`.

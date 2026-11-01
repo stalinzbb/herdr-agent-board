@@ -1,14 +1,14 @@
 # Board
 
 A flat, dark kanban window for running many coding agents: every tab is a card, sorted into columns by
-what its agent is doing, with the focused tab's terminal below and a side rail for dev servers and Jira.
+what its agent is doing, with the focused tab's terminal below and a side rail for dev servers and tasks (Jira).
 
 ![Board](preview.png)
 
 ## What you see
 
 - **Bar** (48px, window drag area): "Board / <space>" on the left; a red "Needs you" count; an
-  All spaces / This space switch; text buttons Prompt all, Board ⌘B, Dev ⌘⇧E, Jira ⌘⇧J, Classic ⌘⇧K;
+  All spaces / This space switch; text buttons Prompt all, Board ⌘B, Dev ⌘⇧E, Tasks ⌘⇧J, Classic ⌘⇧K;
   a white "+ New card" button.
 - **Board** (weight 2): four rounded columns (radius 16, chrome color): Needs you (red dot), In progress
   (amber), Review (green), Backlog (grey), each with a count. Cards (radius 12, surface color) show a
@@ -18,12 +18,12 @@ what its agent is doing, with the focused tab's terminal below and a side rail f
 - **Main tab** below the board: the focused tab's panes, radius 16, with a 34px pane header (mod
   `kanban-pane`) that, for Claude, adds repo · branch · worktree, running subagents, prompt-cache
   countdown, a context bar ("165k / 1M", amber at 70%, red at 90%) and the model name.
-- **Rail** (364px, right): a Dev | Jira switch (40px), then:
+- **Rail** (364px, right): a Dev | Tasks switch (40px; the name comes from `name` in jira.json), then:
   - Dev: running servers and simulators/devices first; everything else folded under "Not running".
-  - Jira: tabs from the config (Today plus the preset's tabs), "Updated Xm ago", ⟳ and ✎. Today shows
+  - Tasks (Jira): tabs from the config (Today plus the preset's or your own tabs; opens on `default_tab`), "Updated Xm ago", ⟳ and ✎. Today shows
     the digest (mentions, comments, status changes, quiet tickets) and one card per kind of work with
     in-progress and fresh to-dos. Other tabs group by status (In progress, To do with "Show N older",
-    Done folded, 5 at a time) or by parent story. Rows are two lines: title, then a status pill (click to
+    Done folded, 5 at a time; `status_map` decides what each status counts as, or hides it) or by parent story. Rows are two lines: title, then a status pill (click to
     move the ticket), key, platform tag.
 - **Status bar**: Herdr's `workspace-status`, plus a 440px usage widget: "Today ≈ $X · model tokens · cache %".
   Clicking it opens a 900×680 frameless stats window: Today / 7 days / 30 days / All time, KPIs, a
@@ -39,12 +39,12 @@ shadows never both, color only for status and data.
 - Columns: blocked → Needs you; working → In progress; done → Review; idle → Backlog. Clicking a card
   selects its tab. The timer counts from when the agent started working.
 - ⌘B toggles the board, ⌘⇧K switches to Herdr's classic layout and back, ⌘⇧E/⌘⇧J open the rail on
-  Dev/Jira, ⌘⇧U opens usage stats. Esc or × closes the stats window.
+  Dev/Tasks, `kanban.tasks_<tab>` opens Tasks on a tab, ⌘⇧U opens usage stats. Esc or × closes the stats window.
 - Dev: start/stop a configured server (runs in a background Herdr terminal named `dev-<id>`), reload
   Metro, boot simulators; a crashed server notifies.
 - `kanban.demo` toggles demo mode (shared `kanban.demo`): `demo.js` supplies made-up cards, Jira
-  data and usage, and the pane header shows a placeholder folder. `preview.png` is taken in it.
-- Jira: refreshes every 30 minutes in weekday work hours; the digest runs once a day after `digest_at`
+  data and usage (the Tasks panel shows Today, then returns to your tab), and the pane header shows a placeholder folder. `preview.png` is taken in it.
+- Tasks: refreshes from Jira every 30 minutes in weekday work hours; the digest runs once a day after `digest_at`
   and notifies.
 
 ## Built from

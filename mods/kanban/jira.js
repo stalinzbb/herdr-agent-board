@@ -1,4 +1,4 @@
-// The Jira panel: saved views and the morning digest, read from the cache that
+// The Tasks panel (Jira underneath): saved views and the morning digest, read from the cache that
 // jira-sync.py fills through Claude's Atlassian connector. This copy also decides
 // when to refresh: every refresh_minutes in work hours, the digest once a day.
 
@@ -52,6 +52,8 @@ export class Jira {
     let cfg;
     try { cfg = JSON.parse(r.stdout); } catch { cfg = { error: (r.stderr || r.stdout || "jira-sync.py config failed").trim().slice(0, 200) }; }
     this.cfg = { views: [], ...cfg };
+    // The panel's name ("name" in jira.json, else "Tasks"): the rail switch and board button read it.
+    setShared("kanban.tasks.name", this.cfg.name || "Tasks");
   }
 
   // Demo mode (kanban.demo): made-up tickets, no Jira calls.
@@ -70,7 +72,7 @@ export class Jira {
     if (!first && digest?.at && digest.at !== this.digest?.at) {
       const n = (digest.mentions?.length ?? 0) + (digest.comments?.length ?? 0);
       notify({
-        title: "Jira: your morning digest",
+        title: `${shared("kanban.tasks.name") || "Tasks"}: your morning digest`,
         body: [`${digest.mentions?.length ?? 0} mentions`, `${digest.comments?.length ?? 0} new comments`, `${digest.moved?.length ?? 0} status changes`, `${digest.stale?.length ?? 0} quiet`].join(" · "),
         level: n > 0 ? "warning" : "info",
         action: { name: "layout.show", args: { id: "rail" } },
@@ -118,7 +120,10 @@ export class Jira {
 
   view() {
     const v = shared("kanban.jira.view");
-    return this.tabs().some((t) => t.id === v) ? v : "today";
+    const tabs = this.tabs();
+    if (tabs.some((t) => t.id === v)) return v;
+    // First open, or the remembered tab is gone: "default_tab" in jira.json, else Today.
+    return tabs.some((t) => t.id === this.cfg.default_tab) ? this.cfg.default_tab : "today";
   }
 
   // Folding: remembered per group; done groups start folded.
@@ -139,7 +144,7 @@ export class Jira {
   }
 
   openCount(tab) {
-    return (tab.sections ?? []).reduce((n, sec) => n + this.issuesOf(sec.view).filter((i) => (sec.status_map?.[i.status] ?? i.category) !== "done").length, 0);
+    return (tab.sections ?? []).reduce((n, sec) => n + this.issuesOf(sec.view).filter((i) => !["done", "hide"].includes(sec.status_map?.[i.status] ?? i.category)).length, 0);
   }
 
   render(cx) {
@@ -198,7 +203,7 @@ export class Jira {
       const v = this.data?.views?.[sec.view];
       const label = sec.label ?? this.cfg.views.find((x) => x.id === sec.view)?.label ?? sec.view;
       if (many) {
-        const open = (v?.issues ?? []).filter((i) => (sec.status_map?.[i.status] ?? i.category) !== "done").length;
+        const open = (v?.issues ?? []).filter((i) => !["done", "hide"].includes(sec.status_map?.[i.status] ?? i.category)).length;
         out.push(h_flex().flex_none().h(30).mt(12).px(12).gap(8).items_center()
           .child(div().text_size(13).font_semibold().child(label))
           .child(div().text_size(12).text_color(p.faint).child(v?.issues ? `${open} open` : "")));
@@ -207,7 +212,8 @@ export class Jira {
       if (v.error) { out.push(note(p, v.error, STATUS.blocked)); continue; }
       if (!v.issues?.length) { out.push(note(p, "No tickets")); continue; }
       const remap = (i) => ({ ...i, category: sec.status_map?.[i.status] ?? i.category });
-      let issues = v.issues.map(remap);
+      // status_map can send a status to "hide": a step you don't track here (e.g. Won't Do).
+      let issues = v.issues.map(remap).filter((i) => i.category !== "hide");
       if (sec.pair_migrate) issues = pairMigrate(issues);
       if (sec.group === "status") out.push(...this.byStatus(p, `${tab.id}.${sec.view}`, issues));
       else if (sec.group === "parent") out.push(...this.byParent(p, `${tab.id}.${sec.view}`, issues));

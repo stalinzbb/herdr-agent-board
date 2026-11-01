@@ -200,7 +200,7 @@ export function bar() {
     .when(live.length > 0, (el) => el.child(ghost("prompt-all", "Prompt all", () => openPrompts(live, `All agents (${live.length})`), p)))
     .child(ghost("toggle-board", "Board ⌘B", () => run("layout.toggle", { id: "board" }), p))
     .child(ghost("toggle-rail", "Dev ⌘⇧E", () => railTo("dev"), p))
-    .child(ghost("toggle-jira", (shared("kanban.jira.count") ?? 0) > 0 ? `Jira ${shared("kanban.jira.count")} ⌘⇧J` : "Jira ⌘⇧J", () => railTo("jira"), p))
+    .child(ghost("toggle-jira", `${shared("kanban.tasks.name") || "Tasks"}${(shared("kanban.jira.count") ?? 0) > 0 ? ` ${shared("kanban.jira.count")}` : ""} ⌘⇧J`, () => railTo("jira"), p))
     .child(ghost("to-classic", "Classic ⌘⇧K", () => run("layout.switch", { name: "main" }), p))
     .child(div().w(6))
     .child(

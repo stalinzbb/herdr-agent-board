@@ -52,15 +52,18 @@ The panel reaches Jira only through a Claude connector (no API token). `jira-syn
    - `mine` — no vars; assigned and reported, every project. The safe fallback.
    Recommend one from the tally, with the vars filled from what you saw — only use project keys, issue types
    and statuses that actually appeared. Ask the person to confirm (AskUserQuestion), naming what each tab
-   would show in their words.
+   would show in their words. If no preset fits how they work, or their steps mean something different
+   (a hand-off status that is "done" for them, statuses to hide), write the site, cloudId and closest
+   preset first, then follow the `workflow` skill (`/herdr-agent-board:workflow`) to shape the tabs.
 5. **Write** `~/.config/herdr-board/jira.json`, smallest form that works:
    ```json
    { "site": "https://example.atlassian.net", "cloudId": "…", "preset": "designer",
      "vars": { "design": "UXD", "dev": "ECOM" } }
    ```
-   Any top-level key (`views`, `tabs`, `today_tabs`, `digest_at`, `work_hours`, `refresh_minutes`,
-   `stale_days`, `old_days`) replaces the preset's. A view is `{id, label, jql, max?}`; a tab is
-   `{id, label, sections: [{view, label?, group: "status" | "parent", status_map?, pair_migrate?, title_from_parent?}]}`.
+   Any top-level key (`name`, `default_tab`, `views`, `tabs`, `today_tabs`, `digest_at`, `work_hours`,
+   `refresh_minutes`, `stale_days`, `old_days`) replaces the preset's — the `workflow` skill documents each. A view is `{id, label, jql, max?}`; a tab is
+   `{id, label, sections: [{view, label?, group: "status" | "parent", status_map?, pair_migrate?, title_from_parent?}]}`;
+   `status_map` values are `new`, `indeterminate`, `done` or `hide`.
 6. **Check every search.** `python3 -I ~/.config/herdr-app/mods/kanban/jira-sync.py config` prints the
    resolved config (or `{"error": …}` for a missing var). Run each view's `jql` once yourself with maxResults 1.
    A JQL error (an issue type or status that doesn't exist on their site) means fix the var, not the preset.
