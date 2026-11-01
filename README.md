@@ -1,5 +1,7 @@
 # Herdr agent board
 
+![Herdr agent board](preview.png)
+
 A layout for [Herdr](https://herdr.dev): your agent tabs as a kanban board, a Dev panel for servers and
 simulators, a Jira panel fed through Claude's Atlassian connector, Claude stats in each pane header, and
 long-term Claude usage and cost stats.
@@ -75,6 +77,12 @@ The mods run programs: `hc` (start dev servers, send prompts), `lsof`, `xcrun si
 `python3` (Jira sync, usage import) and `claude` (Jira, through your connector). They read
 `~/.claude/projects/**` for usage stats and pane stats. Changing a ticket's status from the panel
 writes to Jira.
+
+## Demo mode
+
+`herdr-app do kanban.demo` fills every panel with made-up data (a fictional "Acme" with cards,
+tickets and costs), for screenshots or to try the board before setting anything up. Run it again to
+go back. It makes no Jira calls and changes nothing.
 
 ## Keys
 

@@ -5,6 +5,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, run, home, appHome, readTextFile, watchFolder, openOverlay, closeOverlay, props } from "herdr";
 import { pal, ago, ICON, readConfig } from "./ui.js";
+import { demo, DEMO_USAGE } from "./demo.js";
 
 const CACHE = () => `${home()}/.cache/herdr-kanban`;
 const fmt = (n) => (n >= 1e9 ? `${+(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${+(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
@@ -47,7 +48,7 @@ export class UsageWidget {
 
   render() {
     const p = pal();
-    const d = this.data;
+    const d = demo() ? DEMO_USAGE : this.data;
     const models = Object.entries(d?.models ?? {}).sort((a, b) => total(b[1]) - total(a[1]));
     const all = models.reduce((s, [, a]) => ({ in: s.in + a.input + a.cache_write, cr: s.cr + a.cache_read }), { in: 0, cr: 0 });
     const share = all.in + all.cr ? Math.round((all.cr / (all.in + all.cr)) * 100) : null;

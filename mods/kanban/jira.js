@@ -6,6 +6,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, run, notify, home, appHome, readTextFile, watchFolder, shared, setShared, openOverlay } from "herdr";
 import { ICON, STATUS, pal, ago, dot, iconBtn, editConfig } from "./ui.js";
+import { demo, demoJira, DEMO_JIRA_CONFIG } from "./demo.js";
 import { CAT, pill } from "./pill.js";
 
 const CACHE = () => `${home()}/.cache/herdr-kanban`;
@@ -53,7 +54,18 @@ export class Jira {
     this.cfg = { views: [], ...cfg };
   }
 
+  // Demo mode (kanban.demo): made-up tickets, no Jira calls.
+  useDemo() {
+    const d = demoJira();
+    this.isDemo = true;
+    this.cfg = { ...DEMO_JIRA_CONFIG };
+    this.data = d.data;
+    this.digest = d.digest;
+    this.status = d.status;
+  }
+
   async load(first) {
+    if (this.isDemo) return;
     const [data, digest, status] = await Promise.all([readJson("jira.json"), readJson("digest.json"), readJson("status.json")]);
     if (!first && digest?.at && digest.at !== this.digest?.at) {
       const n = (digest.mentions?.length ?? 0) + (digest.comments?.length ?? 0);
@@ -78,7 +90,7 @@ export class Jira {
 
   // Due: the digest once a day at digest_at (or the first chance after), else views every refresh_minutes in work hours.
   tick() {
-    if (this.running() || !this.cfg?.cloudId) return;
+    if (this.isDemo || this.running() || !this.cfg?.cloudId) return;
     const now = new Date();
     const at = new Date(now);
     at.setHours(this.cfg.digest_at ?? 8, 0, 0, 0);
@@ -90,7 +102,7 @@ export class Jira {
   }
 
   refresh(mode) {
-    if (this.running()) return;
+    if (this.isDemo || this.running()) return;
     this.starting = true;
     this.loadConfig();
     const script = `${appHome()}/mods/kanban/jira-sync.py`;
@@ -131,6 +143,11 @@ export class Jira {
   }
 
   render(cx) {
+    if (demo() && !this.isDemo) this.useDemo();
+    else if (!demo() && this.isDemo) {
+      this.isDemo = false;
+      cx.spawn(async (cx) => { await this.loadConfig(); await this.load(true); cx.notify(); });
+    }
     const p = pal();
     const cur = this.view();
     const count = (this.digest?.mentions?.length ?? 0) + (this.digest?.comments?.length ?? 0);

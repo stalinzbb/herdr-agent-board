@@ -7,7 +7,7 @@
 //   prompts  - the saved-prompts popup (opened by the board)
 
 import { View } from "gpui-kit";
-import { props, nextCommand, openOverlay } from "herdr";
+import { props, nextCommand, openOverlay, shared, setShared } from "herdr";
 import { bar, board } from "./board.js";
 import { Rail } from "./rail.js";
 import { Jira } from "./jira.js";
@@ -32,6 +32,11 @@ export default class Kanban extends View {
         for (;;) {
           const c = await nextCommand();
           if (c === "jira" || c === "dev") railTo(c);
+          // Made-up data in every panel, for screenshots: herdr-app do kanban.demo (again to leave).
+          if (c === "demo") {
+            setShared("kanban.demo", !shared("kanban.demo"));
+            if (shared("kanban.demo")) setShared("kanban.jira.view", "today");
+          }
           if (c === "usage") openOverlay({ mod: "kanban", props: { role: "usagestats" }, kind: "window", key: "usage-stats", width: 900, height: 680, frame: "none" });
           cx.notify();
         }

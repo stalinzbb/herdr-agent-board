@@ -7,7 +7,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { panes, props, run, theme, home, appHome, exec, readTextFile } from "herdr";
+import { panes, props, run, theme, home, appHome, exec, readTextFile, shared } from "herdr";
 
 const C = { amber: "#e2b340", red: "#e5566f", green: "#3fc07a" };
 
@@ -18,6 +18,7 @@ function icon(p, size, color) {
 
 function folder(cwd) {
   if (!cwd) return "";
+  if (shared("kanban.demo")) return "~/code/acme-store"; // demo mode (kanban mod): no real paths on screen
   const h = home();
   return cwd === h ? "~" : cwd.startsWith(h + "/") ? "~" + cwd.slice(h.length) : cwd;
 }

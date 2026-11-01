@@ -42,6 +42,8 @@ shadows never both, color only for status and data.
   Dev/Jira, ⌘⇧U opens usage stats. Esc or × closes the stats window.
 - Dev: start/stop a configured server (runs in a background Herdr terminal named `dev-<id>`), reload
   Metro, boot simulators; a crashed server notifies.
+- `kanban.demo` toggles demo mode (shared `kanban.demo`): `demo.js` supplies made-up cards, Jira
+  data and usage, and the pane header shows a placeholder folder. `preview.png` is taken in it.
 - Jira: refreshes every 30 minutes in weekday work hours; the digest runs once a day after `digest_at`
   and notifies.
 

@@ -5,6 +5,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgentOrder, openOverlay, home } from "herdr";
 import { ICON, STATUS, pal, ago, dot, progIcon, iconBtn, tilde } from "./ui.js";
 import { railTo } from "./railtabs.js";
+import { demo, demoCards } from "./demo.js";
 
 const COLUMNS = [
   { id: "blocked", label: "Needs you" },
@@ -60,6 +61,7 @@ function dur(ms) {
 
 // The running servers (and, through them, simulators) whose folder this card's terminals are in.
 function devUse(c) {
+  if (c.demo_dev) return c.demo_dev;
   const dev = shared("kanban.dev");
   if (!dev) return { servers: [], others: [], devices: false };
   const h = home();
@@ -106,6 +108,7 @@ function devChips(p, c) {
 }
 
 export function cards() {
+  if (demo()) return demoCards();
   const all = panes();
   const terms = terminals();
   const list = [];
@@ -170,7 +173,7 @@ export function bar() {
   const list = cards();
   const need = list.filter((c) => c.column === "blocked").length;
   const active = spaces().find((s) => s.active);
-  const scopeName = scope() === "space" ? (active?.name === "~" ? "Home" : active?.name ?? "") : "All spaces";
+  const scopeName = demo() ? "Demo" : scope() === "space" ? (active?.name === "~" ? "Home" : active?.name ?? "") : "All spaces";
   const live = agents().map((a) => a.address);
   return h_flex()
     .size_full()
@@ -275,7 +278,7 @@ function card(p, c) {
   const { tab, space, lead } = c;
   const now = Date.now();
   const when = !tab.working_since && tab.changed_at ? (now - tab.changed_at < 60000 ? "just now" : `${ago(now - tab.changed_at)} ago`) : null;
-  const last = lastRuns()[tab.id];
+  const last = tab.demo_worked ? { ms: tab.demo_worked } : lastRuns()[tab.id];
   const worked = !tab.working_since && last?.ms ? `worked ${dur(last.ms)}` : null;
   const branch = space.branch ?? lead?.branch;
   const proj = project(space, lead);
