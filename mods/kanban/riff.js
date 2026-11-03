@@ -15,12 +15,17 @@ import { v_flex, h_flex, InputState, Input, SliderState, Slider, SliderTrack, Sl
 import { exec, home, readTextFile, writeTextFile, watchFolder, terminals, agents, focused, notify, settings } from "herdr";
 import { ICON, STATUS, pal, tilde, dot } from "./ui.js";
 import { demo, DEMO_RIFF } from "./demo.js";
-import { RIFF_DIR, isSpec, stemOf, riffs, agentLabel, goToRiff } from "./riffs.js";
+import { RIFF_DIR, isSpec, stemOf, riffs, askerLabel, paneLabel, goToRiff } from "./riffs.js";
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-// What the empty panel offers to send: works for whatever the agent just built.
-const SAMPLE = "Riff me the values of what you just built that are a matter of taste (spacing, sizes, colors, timing).";
+// What the empty panel offers to send. It has to stand on its own: the agent may have been cleared,
+// may not have the riff skill loaded (it started before the plugin was installed), and "riff" alone
+// reads as "improvise some variations". So it names the skill, gives the fallback, and sets the scope.
+const SAMPLE = "Riff me the matter-of-taste values in what you just built (spacing, sizes, colors, timing, motion). "
+  + "Use the herdr-agent-board:riff skill; if you don't have it, run `python3 ~/.config/herdr-app/mods/kanban/riff.py --help` and follow that. "
+  + "If you don't remember what you built, check git. Plan the questions first (most impact first, 2–8 controls each, defaults read from the code), "
+  + "then open one riff at a time and apply each answer before the next. Don't answer in prose.";
 
 // ---- reading a DialKit config
 
@@ -449,18 +454,35 @@ export class Riff {
       .when(elsewhere.length > 0, (el) => el.child(this.waitingView(p, elsewhere)));
   }
 
-  // Nothing open here: one line, and a prompt to get one, ready to copy or send to this pane's agent.
+  // Who "Ask" sends to: the focused pane's agent. If you're on a pane that isn't one (a dev
+  // server, a simulator log, a mod), every agent in the tab, so you can pick which pane to ask.
+  askTargets() {
+    if (demo()) return [];
+    const f = focused();
+    const all = agents();
+    const here = all.find((a) => a.address === f?.terminal || a.address === f?.agent);
+    return here ? [here] : all.filter((a) => a.tab === f?.tab).slice(0, 3);
+  }
+
+  // Nothing open in this tab: one line, and a prompt to get one, ready to copy or send to an agent here.
   emptyView(p) {
-    const agent = demo() ? null : agents().find((a) => a.address === focused()?.terminal);
+    const targets = this.askTargets();
     const btn = (id, label, onPress, primary) => div().id(id).flex_none().h(26).px(10).flex().items_center().rounded(8).text_size(12).font_medium()
       .bg(primary ? p.ink : p.raised).text_color(primary ? p.ground : p.muted)
       .cursor_pointer().hover((s) => s.opacity(0.9)).active((s) => s.opacity(0.75))
       .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); onPress(cx); })
       .child(label);
+    const ask = (a) => (cx) => cx.spawn(async () => {
+      const r = await exec("hc", ["send", a.address, SAMPLE]).catch((e) => ({ code: 1, stderr: String(e) }));
+      notify(r.code === 0 ? { title: "Asked for a riff", body: askerLabel(a), level: "success", timeout: 2000 } : { title: "Couldn't reach the agent", body: (r.stderr || "").trim().slice(0, 160), level: "warning" });
+    });
+    // On an agent's pane: "Ask this agent". On another pane: a button per agent in the tab, by name.
+    const onAgent = targets.length === 1 && targets[0].address === (focused()?.terminal ?? focused()?.agent);
+    const askLabel = (a) => (onAgent ? "Ask this agent" : `Ask ${paneLabel(a) ?? askerLabel(a)}`);
     return v_flex().flex_none().mx(12).mt(12).p(8).gap(8).rounded(16).bg(p.card)
-      .child(div().px(4).pt(2).text_size(12.5).text_color(p.muted).child("No questions from this agent"))
+      .child(div().px(4).pt(2).text_size(12.5).text_color(p.muted).child(targets.length > 1 ? "No questions from the agents in this tab" : "No questions from this agent"))
       .child(div().px(10).py(8).rounded(8).bg(p.ground).text_size(12.5).text_color(p.ink).child(SAMPLE))
-      .child(h_flex().gap(6).justify_end()
+      .child(h_flex().gap(6).justify_end().flex_wrap()
         .child(btn("riff-copy", this.copied ? "Copied" : "Copy", (cx) => {
           cx.spawn(async (cx) => {
             await exec("/bin/sh", ["-c", 'printf %s "$1" | pbcopy', "sh", SAMPLE]).catch(() => null);
@@ -469,12 +491,7 @@ export class Riff {
             this.copied = false; cx.notify();
           });
         }))
-        .when(!!agent, (el) => el.child(btn("riff-ask", "Ask this agent", (cx) => {
-          cx.spawn(async () => {
-            const r = await exec("hc", ["send", agent.address, SAMPLE]).catch((e) => ({ code: 1, stderr: String(e) }));
-            notify(r.code === 0 ? { title: "Asked for a riff", level: "success", timeout: 2000 } : { title: "Couldn't reach the agent", body: (r.stderr || "").trim().slice(0, 160), level: "warning" });
-          });
-        }, true))));
+        .children(targets.map((a, i) => btn(`riff-ask-${i}`, askLabel(a), ask(a), true))));
   }
 
   // Other agents waiting on you: one row each, click to go there.
@@ -489,7 +506,7 @@ export class Riff {
           .child(dot(STATUS.blocked, 7))
           .child(v_flex().flex_1().min_w(0)
             .child(div().truncate().text_size(12.5).child(r.question))
-            .child(div().truncate().text_size(11.5).text_color(p.faint).child(agentLabel(a))));
+            .child(div().truncate().text_size(11.5).text_color(p.faint).child(askerLabel(a))));
       }));
   }
 
@@ -497,7 +514,7 @@ export class Riff {
     const agent = agents().find((a) => a.address === panel.spec.terminal);
     const changed = changesOf(panel).length;
     const out = this.outputPath(panel);
-    const who = panel.stem === "demo" ? "Product page: new image gallery" : agentLabel(agent);
+    const who = panel.stem === "demo" ? "Product page: new image gallery" : askerLabel(agent);
     const status = panel.answered ? (panel.answered === "skipped" ? "Skipped" : "Sent")
       : changed ? `${plural(changed, "change")} · Enter answers`
       : out ? `Live → ${tilde(out)}`
@@ -507,7 +524,11 @@ export class Riff {
       .flex_none()
       .mt(12)
       .child(v_flex().px(16).gap(2)
-        .child(h_flex().gap(6).items_center()
+        // A riff from another pane in this tab: clicking who asks takes you to that pane.
+        .child(h_flex().id(`who-${panel.stem}`).gap(6).items_center()
+          .when(!!agent && agent.address !== focused()?.terminal, (el) => el.cursor_pointer()
+            .hover((s) => s.opacity(0.8))
+            .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); goToRiff(agent.address); }))
           .child(dot(STATUS.blocked, 6))
           .child(div().truncate().text_size(11.5).text_color(p.faint).child(`${who} asks`)))
         .child(div().text_size(14).font_medium().child(panel.spec.question ?? panel.stem))

@@ -9,8 +9,23 @@
 spec.json: {"question": "Which gallery spacing feels right?", "about": "src/Gallery.tsx",
             "controls": {"gap": [16, 0, 48, 2], "columns": {"type": "select", "options": ["3", "4"]}},
             "output": "/abs/path/live.json", "id": "gallery"}
-Controls use DialKit's config shapes (github.com/joshpuckett/dialkit). `output` is optional: every
-change is written there, so a dev server can show it live. `id` names the riff (default "riff").
+Controls use DialKit's config shapes (github.com/joshpuckett/dialkit). Defaults are the values in
+the code right now (read them, don't invent them). Keys become labels ("showBadge" -> "Show badge").
+  slider  [default, min, max] or [default, min, max, step]      toggle  true / false
+  color   "#a78bfa" (or rgb()/hsl()/oklch())                      text    "Hello"
+  select  {"type": "select", "options": ["a", "b"]}               folder  {"blur": [12, 0, 40]}
+  spring  {"type": "spring", "visualDuration": 0.3, "bounce": 0.2} (or stiffness/damping/mass)
+  easing  {"type": "easing", "duration": 0.3, "ease": [0.25, 0.1, 0.25, 1]}
+  action  {"type": "action", "label": "Use this one"}  (answers at once)
+`output` is optional: every change is written there as JSON, so an app that reads it shows each value
+live. `id` names the riff (default "riff"); give each question its own id.
+
+How to ask well: one question per riff, 2-8 controls, all about that question. With more taste values
+than that, plan a short series first: group them by what is judged together (layout, color, motion),
+put the one that changes the feel most first, then ask them one at a time, applying each answer to the
+code before the next (so later defaults include it). Say where they are in it ("Card motion (2 of 3)").
+A skip means use your judgment; don't ask it again. The riff opens next to the pane this runs in, and
+the answer comes back to it, so run it from your own pane (a subagent of yours shares it).
 
 Answer: {"status": "answered" | "skipped" | "closed", "values": {...}, "changed": {"path": {"from", "to"}},
          "note": "...", "action": "path of a pressed action button" | null}
