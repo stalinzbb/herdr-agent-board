@@ -24,6 +24,7 @@ How to ask well: one question per riff, 2-8 controls, all about that question. W
 than that, plan a short series first: group them by what is judged together (layout, color, motion),
 put the one that changes the feel most first, then ask them one at a time, applying each answer to the
 code before the next (so later defaults include it). Say where they are in it ("Card motion (2 of 3)").
+The planning is mostly reading: a small subagent can draft the specs; you open them and apply answers.
 A skip means use your judgment; don't ask it again. The riff opens next to the pane this runs in, and
 the answer comes back to it, so run it from your own pane (a subagent of yours shares it).
 

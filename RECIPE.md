@@ -52,7 +52,7 @@ what its agent is doing, with the focused tab's terminal below and a side rail f
     The "<tab> asks" line reads "<tab> · <branch>" when the tab has several agents (folder, or "pane N",
     when branches repeat) and, for another pane's riff, takes you there on click.
     Nothing here: "No questions from this agent", a sample prompt ("Riff me the matter-of-taste values in
-    what you just built…": names the riff skill, falls back to `riff.py --help`, plans the questions
+    what you just built…": names the riff skill, falls back to `riff.py --help`, has a subagent draft the plan
     first, one riff at a time) on a canvas-colored block, and Copy (pbcopy) / Ask this agent (hc send to
     the focused agent; on a pane that isn't an agent, "Ask <pane>" for each agent in the tab, up to 3). Below: "Waiting on you elsewhere · N", one row per other agent's riff; click to go there.
   - Cards: an agent with an open riff goes to Needs you and shows a red "Your call <question>" chip.

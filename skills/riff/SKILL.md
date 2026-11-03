@@ -46,8 +46,19 @@ Before opening anything:
    rules (overlaps, limits) are checked against the real values. Then stop when they skip or say it's
    good.
 
-If the reading in step 1 would take a lot of your context, you can give steps 1 to 4 to a subagent
-and have it return the planned specs; you still open the riffs and apply the answers yourself.
+### Hand the drafting to a subagent
+
+Steps 1 to 4 are mostly reading, so start a small subagent for them unless the values are already in
+your context and fit in one riff. That keeps your context for the work, and it drafts riffs the same
+way every time. Brief it with:
+
+- what to look at: the commit, branch or files of the recent work, and the feature in one line;
+- this skill's path, to read for the rules and the control shapes (or `riff.py --help`);
+- what to return: the plan in one or two lines, then one `riff.py ask` spec per riff, as JSON, in
+  order, with defaults read from the code and the file and line each value lives on.
+
+It drafts only. You open each riff, wait for the answer and apply it, because the answer comes back to
+your pane and the code is yours. Before opening a spec, check a value or two against the code.
 
 ## 2. Ask
 

@@ -24,8 +24,8 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 // reads as "improvise some variations". So it names the skill, gives the fallback, and sets the scope.
 const SAMPLE = "Riff me the matter-of-taste values in what you just built (spacing, sizes, colors, timing, motion). "
   + "Use the herdr-agent-board:riff skill; if you don't have it, run `python3 ~/.config/herdr-app/mods/kanban/riff.py --help` and follow that. "
-  + "If you don't remember what you built, check git. Plan the questions first (most impact first, 2–8 controls each, defaults read from the code), "
-  + "then open one riff at a time and apply each answer before the next. Don't answer in prose.";
+  + "Have a small subagent draft the plan (most impact first, 2–8 controls each, defaults read from the code; check git if you don't remember what you built), "
+  + "then open one riff at a time yourself and apply each answer before the next. Don't answer in prose.";
 
 // ---- reading a DialKit config
 
