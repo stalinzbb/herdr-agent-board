@@ -89,7 +89,9 @@ export default class Pane extends View {
     if (!tr) return false;
     const st = await exec("stat", ["-f", "%z", tr.path]).catch(() => null);
     const size = st?.stdout.trim();
-    if (size && size === this.size && tr.path === this.stats?.path) return false;
+    // The live folder and branch come from Herdr: Claude's transcript only knows where it started.
+    const moved = (p.cwd ?? null) !== (this.stats?.liveCwd ?? null) || (p.branch ?? null) !== (this.stats?.liveBranch ?? null);
+    if (size && size === this.size && tr.path === this.stats?.path && !moved) return false;
     this.size = size;
 
     const tail = await exec("tail", ["-c", "400000", tr.path]).catch(() => null);
@@ -115,7 +117,8 @@ export default class Pane extends View {
     const metas = await exec("sh", ["-c", `for f in "${dir}"/subagents/*.meta.json; do [ -f "$f" ] && cat "$f" && echo; done`]).catch(() => null);
     const subs = (metas?.stdout ?? "").split("\n").map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
 
-    // Repo, branch, worktree, from where Claude itself is.
+    // Repo, branch, worktree, from where the agent is now.
+    if (p.cwd) { cwd = p.cwd; branch = p.branch ?? null; }
     let repo = null, worktree = false;
     if (cwd) {
       const g = await exec("git", ["-C", cwd, "rev-parse", "--show-toplevel", "--absolute-git-dir", "--git-common-dir"]).catch(() => null);
@@ -131,7 +134,7 @@ export default class Pane extends View {
       path: tr.path, guess: tr.guess, model, used, window, ttl,
       lastAt: last?.timestamp ? Date.parse(last.timestamp) : null,
       running: subs.filter((s) => !s.finished), subs: subs.length,
-      cwd, branch, repo, worktree,
+      cwd, branch, repo, worktree, liveCwd: p.cwd ?? null, liveBranch: p.branch ?? null,
     };
     return true;
   }
