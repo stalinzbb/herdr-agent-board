@@ -4,6 +4,7 @@
 //   railtabs - the right panel's Dev | Tasks switcher
 //   rail     - the dev panel: servers, simulators, devices
 //   jira     - the Tasks panel (Jira): saved views and the morning digest
+//   riff     - the Riff panel: an agent's UI question with live controls, for the focused pane
 //   prompts  - the saved-prompts popup (opened by the board)
 
 import { View } from "gpui-kit";
@@ -11,12 +12,14 @@ import { props, nextCommand, openOverlay, shared, setShared } from "herdr";
 import { bar, board } from "./board.js";
 import { Rail } from "./rail.js";
 import { Jira } from "./jira.js";
+import { Riff } from "./riff.js";
+import { watchRiffs, goToRiff } from "./riffs.js";
 import { Prompts } from "./prompts.js";
 import { JStatus } from "./jstatus.js";
 import { UsageWidget, UsageStats } from "./usage.js";
 import { railtabs, railTo, railShows } from "./railtabs.js";
 
-const PARTS = { rail: Rail, jira: Jira, prompts: Prompts, jstatus: JStatus, usage: UsageWidget, usagestats: UsageStats };
+const PARTS = { rail: Rail, jira: Jira, riff: Riff, prompts: Prompts, jstatus: JStatus, usage: UsageWidget, usagestats: UsageStats };
 
 export default class Kanban extends View {
   init(_props, cx) {
@@ -27,13 +30,19 @@ export default class Kanban extends View {
       return;
     }
     if (role === "bar") {
-      // keys.json: "kanban.jira" (or "kanban.tasks") / "kanban.dev" open (or close) that side panel.
+      // The bar is always shown: it watches for agents' riffs (questions for you) for the whole board.
+      watchRiffs(cx);
+      // keys.json: "kanban.jira" (or "kanban.tasks") / "kanban.dev" / "kanban.riff" open (or close) that side panel.
       // "kanban.tasks_<tab id>" opens the Tasks panel on that tab, e.g. kanban.tasks_dev.
       cx.spawn(async (cx) => {
         for (;;) {
           const c = await nextCommand();
           if (c === "jira" || c === "tasks") railTo("jira");
           if (c === "dev") railTo("dev");
+          if (c === "riff" || c === "tune" || c === "dials") railTo("riff");
+          if (c === "riff_open" && railShows() !== "riff") railTo("riff");
+          // From a "needs your call" notification: go to that agent with its riff open.
+          if (c.startsWith("riff_t")) goToRiff(c.slice("riff_".length));
           if (c.startsWith("tasks_")) {
             setShared("kanban.jira.view", c.slice("tasks_".length));
             if (railShows() !== "jira") railTo("jira");

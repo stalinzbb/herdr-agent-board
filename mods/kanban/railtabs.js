@@ -1,4 +1,4 @@
-// The right panel's switcher: Dev | Tasks (the Jira panel; its name comes from jira.json). Also what ⌘⇧J / ⌘⇧E-style commands use.
+// The right panel's switcher: Dev | Tasks | Riff (the Jira panel; its name comes from jira.json). Also what ⌘⇧J / ⌘⇧E-style commands use.
 
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
@@ -54,5 +54,6 @@ export function railtabs() {
     .bg(p.col)
     .child(h_flex().w_full().p(2).gap(2).rounded(16).bg(p.ground)
       .child(tab("dev", "Dev"))
-      .child(tab("jira", shared("kanban.tasks.name") || "Tasks", count)));
+      .child(tab("jira", shared("kanban.tasks.name") || "Tasks", count))
+      .child(tab("riff", "Riff", (shared("kanban.riffs") ?? []).length)));
 }

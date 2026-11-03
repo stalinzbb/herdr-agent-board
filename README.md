@@ -3,8 +3,9 @@
 ![Herdr agent board](preview.png)
 
 A layout for [Herdr](https://herdr.dev): your agent tabs as a kanban board, a Dev panel for servers and
-simulators, a Tasks panel (Jira, fed through Claude's Atlassian connector), Claude stats in each pane header, and
-long-term Claude usage and cost stats.
+simulators, a Tasks panel (Jira, fed through Claude's Atlassian connector), riffs (an agent asks you a UI question
+with live controls, after [DialKit](https://github.com/joshpuckett/dialkit), and gets your answer back), Claude stats in each
+pane header, and long-term Claude usage and cost stats.
 
 ## Install
 
@@ -81,6 +82,23 @@ Jira calls go through `claude -p --model haiku` with only the connector's Jira t
 results are read from the tool calls as Jira returned them, so nothing in the panel is written by the
 model. If your Atlassian tools have another name, list them under `"tools"` in `jira.json` (see the skill).
 
+## Riff: agents ask you UI questions
+
+When an agent needs your call on something visual (how much spacing, which color, which variant, how
+a spring feels), it opens a **riff**: a question with live controls (sliders, colors, toggles,
+selects, springs, easings) in the rail's **Riff** tab, next to its pane. You drag, add a note if you
+like, and **Answer** (or **Skip**). The answer goes straight back to the agent and the riff closes.
+
+- It's contextual: the Riff tab shows the question from the pane you're on. An agent elsewhere that's
+  waiting on you moves to "Needs you" on the board with its question on the card, and you get a
+  notification that takes you there.
+- If the agent wrote a live `output` file, your dev server shows each value as you drag.
+- If the agent stopped waiting, your answer is typed into it as a `Riff · …` message instead.
+
+Agents learn how from the `riff` skill (`skills/riff/SKILL.md`, in the plugin): they run
+`mods/kanban/riff.py ask` with a question and DialKit-shaped controls, and get JSON back. You can also
+just say "riff me the card spacing".
+
 ## What it runs
 
 The mods run programs: `hc` (start dev servers, send prompts), `lsof`, `xcrun simctl`, `adb`, `git`,
@@ -96,7 +114,13 @@ go back. It makes no Jira calls and changes nothing.
 
 ## Keys
 
-⌘⇧K board ⇄ classic · ⌘B hide the board · ⌘⇧E Dev · ⌘⇧J Tasks · ⌘⇧U usage stats
+⌘⇧K board ⇄ classic · ⌘B hide the board · ⌘⇧E Dev · ⌘⇧J Tasks · ⌘⇧Y Riff · ⌘⇧U usage stats
 
 `herdr-app do kanban.tasks_<tab id>` opens the Tasks panel on a tab (for example `kanban.tasks_dev`),
-and can be bound to a key in `keys.json`.
+and can be bound to a key in `keys.json`. `herdr-app do kanban.riff_open` opens Riff (and never closes it).
+
+## Credits
+
+Riff is modeled on [DialKit](https://github.com/joshpuckett/dialkit) by
+[Josh Puckett](https://joshpuckett.me) (MIT): its idea of live tuning controls, its control config
+format and its slider range rules. Riff is a native Herdr rebuild and contains no DialKit code.

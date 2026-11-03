@@ -5,6 +5,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgentOrder, openOverlay, home, window } from "herdr";
 import { ICON, STATUS, pal, ago, dot, progIcon, iconBtn, tilde } from "./ui.js";
 import { railTo } from "./railtabs.js";
+import { riffs, goToRiff } from "./riffs.js";
 import { demo, demoCards } from "./demo.js";
 
 const COLUMNS = [
@@ -124,6 +125,8 @@ export function cards() {
       // An unnamed tab is only its number: lead with what its agent is doing instead.
       const title = tab.named ? tab.name : telling ? live : prog ?? `Tab ${tab.name}`;
       const agentTerms = mine.filter((p) => p.status && p.terminal).map((p) => p.terminal);
+      // An agent waiting on your answer to a riff needs you, whatever its own status says.
+      const riff = riffs().find((r) => agentTerms.includes(r.terminal)) ?? null;
       list.push({
         space: s,
         tab,
@@ -133,7 +136,8 @@ export function cards() {
         agents: agentTerms,
         subs: terms.filter((t) => t.state === "live" && t.parent && agentTerms.includes(t.parent)),
         folders: [...new Set(mine.map((p) => p.cwd).filter(Boolean))],
-        column: tab.status ?? "idle",
+        column: riff ? "blocked" : tab.status ?? "idle",
+        riff,
         current: s.active && tab.active,
       });
     }
@@ -206,6 +210,7 @@ export function bar() {
     .child(ghost("toggle-board", "Board ⌘B", () => run("layout.toggle", { id: "board" }), p))
     .child(ghost("toggle-rail", "Dev ⌘⇧E", () => railTo("dev"), p))
     .child(ghost("toggle-jira", `${shared("kanban.tasks.name") || "Tasks"}${(shared("kanban.jira.count") ?? 0) > 0 ? ` ${shared("kanban.jira.count")}` : ""} ⌘⇧J`, () => railTo("jira"), p))
+    .child(ghost("toggle-riff", "Riff ⌘⇧Y", () => railTo("riff"), p))
     .child(ghost("to-classic", "Classic ⌘⇧K", () => run("layout.switch", { name: "main" }), p))
     .child(div().w(6))
     .child(
@@ -329,6 +334,28 @@ function card(p, c) {
               .child(svg(ICON("spinner")).size(11).spin(900))
               .child(dur(now - tab.working_since)))))
     .when(!!c.subtitle, (el) => el.child(div().truncate().text_size(12.5).text_color(p.muted).child(c.subtitle)))
+    // A riff waiting on you: its question, one click from the controls.
+    .when(!!c.riff, (el) =>
+      el.child(
+        h_flex()
+          .id(`riff-${tab.id}`)
+          .h(24)
+          .px(8)
+          .gap(6)
+          .items_center()
+          .rounded(9)
+          .bg("#e5566f1f")
+          .text_size(12)
+          .text_color("#f2a0ae")
+          .cursor_pointer()
+          .hover((s) => s.bg("#e5566f33"))
+          .on_mouse_down("left", (_e, cx) => {
+            cx.stop_propagation();
+            if (!c.riff.demo) goToRiff(c.riff.terminal);
+          })
+          .child(dot(STATUS.blocked, 6))
+          .child(div().flex_none().font_medium().child("Your call"))
+          .child(div().min_w(0).truncate().child(c.riff.question))))
     // Sub-agents
     .when(c.subs.length > 0, (el) =>
       el.child(
