@@ -3,7 +3,7 @@
 ![Herdr agent board](preview.png)
 
 A layout for [Herdr](https://herdr.dev): your agent tabs as a board of whose turn it is, a Dev panel for servers and
-simulators, a Tasks panel (Jira, fed through Claude's Atlassian connector), riffs (an agent asks you a UI question
+simulators, a Tasks panel (Jira, GitHub, Linear or your own list, one tab each), riffs (an agent asks you a UI question
 with live controls, after [DialKit](https://github.com/joshpuckett/dialkit), and gets your answer back), Claude stats in each
 pane header, and long-term Claude usage and cost stats.
 
@@ -22,10 +22,11 @@ Then, in Claude Code, add this repo as a plugin and run the setup skill:
 /herdr-agent-board:setup
 ```
 
-Setup finds your Atlassian site, looks at your recent tickets to pick a Jira preset, finds your dev
-servers, and offers to add the Claude session hook. You can skip it and edit the files below yourself.
+Setup asks where your tasks come from (Jira, GitHub, Linear, your own list, or several), connects each,
+finds your dev servers, and offers to add the Claude session hook. You can skip it and edit the files
+below yourself.
 
-Everyone's steps are different, so the Tasks panel can be shaped to yours:
+Everyone's steps are different, so Jira's tabs can be shaped to yours:
 
 ```
 /herdr-agent-board:workflow
@@ -71,6 +72,31 @@ each panel opens yours, making it from the default the first time.
   `~/.config/herdr-board/backup/`.
 - Changed something in Herdr directly (or had an agent do it)? `./install.sh --pull` copies it back
   into the repo so you can commit it.
+
+## Tasks panel: sources
+
+`tasks.json` turns sources on; each adds its own tab(s), and Today gathers the open work from all of them.
+Every row opens its link, its status pill moves it, and ▶ starts an agent on it in a new tab.
+
+| Source | How it connects | Tab | Status changes |
+|---|---|---|---|
+| `jira` | Claude's Atlassian connector (`claude -p --model haiku`), settings in `jira.json` | The preset's tabs, plus the morning digest on Today | Jira's workflow |
+| `github` | The `gh` CLI you're signed in to | GitHub: Issues (assigned to you), Pull requests (review requests, yours) | Close / reopen issues |
+| `linear` | A personal API key in your Keychain (`herdr-board-linear`) or `$LINEAR_API_KEY` | Linear: issues assigned to you | Your team's states |
+| `local` | Nothing: `~/.config/herdr-board/tasks.local.json` | Mine: add tasks at the top, or an agent runs `tasks-sync.py add "…"` | To do / Doing / Done |
+
+```json
+{ "name": "Tasks",
+  "sources": {
+    "jira": { "enabled": true },
+    "github": { "enabled": true, "issues": "is:open assignee:@me org:acme archived:false" },
+    "linear": { "enabled": false },
+    "local": { "enabled": true, "label": "Mine" } } }
+```
+
+GitHub's `issues`, `closed`, `prs` and `reviews` are GitHub search queries; `recent_days` (14) is how far
+back closed work shows. Jira refreshes every `refresh_minutes` in work hours, the others every `fast_minutes`
+(5). See what the panel will show: `python3 -I ~/.config/herdr-app/mods/kanban/tasks-sync.py config`.
 
 ## Tasks panel: Jira presets
 
