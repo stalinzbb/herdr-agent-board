@@ -46,6 +46,39 @@ export class UsageWidget {
     cx.timer.every(5 * 60000, () => scan());
   }
 
+  // For the status bar: today's cost and a thin bar of each model's share; the numbers on hover.
+  compact(p) {
+    const d = demo() ? DEMO_USAGE : this.data;
+    const models = Object.entries(d?.models ?? {}).sort((a, b) => total(b[1]) - total(a[1]));
+    const cost = models.reduce((n, [, a]) => n + (a.cost ?? 0), 0);
+    const all = models.reduce((s, [, a]) => ({ in: s.in + a.input + a.cache_write, cr: s.cr + a.cache_read }), { in: 0, cr: 0 });
+    const share = all.in + all.cr ? Math.round((all.cr / (all.in + all.cr)) * 100) : null;
+    const tokens = models.reduce((n, [, a]) => n + total(a), 0) || 1;
+    const tip = models.length
+      ? `Claude today, at API list prices: ${models.map(([m, a]) => `${modelName(m)} ${fmt(total(a))}`).join(" · ")}${share != null ? ` · cache ${share}%` : ""}. Click for history.`
+      : "No Claude use yet today. Click for history.";
+    return h_flex()
+      .id("usage")
+      .flex_none()
+      .h(22)
+      .px(8)
+      .gap(8)
+      .items_center()
+      .rounded(7)
+      .cursor_pointer()
+      .hover((s) => s.bg(p.hover).text_color(p.ink))
+      .tooltip(tip)
+      .on_mouse_down("left", (_e, cx) => {
+        cx.stop_propagation();
+        openOverlay({ mod: "kanban", props: { role: "usagestats" }, kind: "window", key: "usage-stats", width: 900, height: 680, frame: "none" });
+      })
+      .child(div().text_color(p.faint).child("Today"))
+      .child(div().font_medium().text_color(p.ink).child(models.length ? usd(cost) : d ? "$0" : "…"))
+      .when(models.length > 0, (el) =>
+        el.child(h_flex().w(48).h(4).rounded(2).overflow_hidden().bg(p.raised)
+          .children(models.map(([m, a]) => div().h_full().w(Math.max(2, Math.round((total(a) / tokens) * 48))).bg(hue(m))))));
+  }
+
   render() {
     const p = pal();
     const d = demo() ? DEMO_USAGE : this.data;

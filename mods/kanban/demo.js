@@ -13,9 +13,9 @@ function program(key) {
 }
 
 const SPACES = {
-  web: { id: "demo-web", name: "Acme Store", folder: "~/code/acme-store", index: 0, active: true },
-  app: { id: "demo-app", name: "Acme Mobile", folder: "~/code/acme-mobile", index: 1, active: false },
-  ds: { id: "demo-ds", name: "Design System", folder: "~/code/acme-ui", index: 2, active: false },
+  web: { id: "demo-web", name: "Acme Store", repo: "acme-store", folder: "~/code/acme-store", index: 0, active: true },
+  app: { id: "demo-app", name: "Acme Mobile", repo: "acme-mobile", folder: "~/code/acme-mobile", index: 1, active: false },
+  ds: { id: "demo-ds", name: "Design System", repo: "acme-ui", folder: "~/code/acme-ui", index: 2, active: false },
 };
 
 let base = null;
@@ -27,13 +27,17 @@ export function demoCards() {
     space: SPACES[sp],
     tab: { id: `demo-${sp}-${i}`, name: title, named: true, status, index: i, panes: o.panes ?? 1,
       changed_at: now - (o.ago ?? 0), working_since: status === "working" ? base - (o.working ?? 5 * M) : null,
-      demo_worked: o.worked ?? null },
+      settled: !!o.settled, settled_at: o.settled ? now - o.settled : null, demo_worked: o.worked ?? null },
     lead: { program: claude, cwd: SPACES[sp].folder, branch: o.branch },
     title, subtitle: o.subtitle ?? null,
     agents: [`demo-${sp}-${i}`],
     subs: (o.subs ?? []).map((name, n) => ({ address: `demo-sub-${sp}-${i}-${n}`, name, status: "working" })),
     folders: [SPACES[sp].folder],
-    column: status,
+    // The board's columns: whose turn it is (see board.js).
+    column: o.settled ? "done" : status === "working" && !o.riff ? "working" : "you",
+    turn: o.riff || status === "blocked" ? "ask" : status === "done" ? "new" : "ready",
+    demo: true,
+    demo_project: o.worktree ? { name: SPACES[sp].repo, folder: o.worktree, worktree: { top: o.worktree, repo: SPACES[sp].repo } } : null,
     current: !!o.current,
     demo_dev: o.dev ?? null,
     riff: o.riff ?? null,
@@ -46,11 +50,13 @@ export function demoCards() {
       dev: { servers: [{ id: "web", name: "Web", port: 3000, url: "http://localhost:3000" }], others: [], devices: false, sims: [], android: [] } }),
     card("app", 3, "Onboarding: three-step welcome", "working", { branch: "feat/welcome", working: 37 * M,
       dev: { servers: [{ id: "metro", name: "Metro", port: 8081, devices: true }], others: [], devices: true, sims: [{ name: "iPhone 17 Pro" }], android: [] } }),
-    card("ds", 4, "Button: add loading state", "working", { branch: "button-loading", working: 3 * M, subs: ["code-reviewer"] }),
+    card("ds", 4, "Button: add loading state", "working", { branch: "button-loading", working: 3 * M, subs: ["code-reviewer"], worktree: "~/.herdr/worktrees/acme-ui/button-loading" }),
     card("web", 5, "Search results empty state", "done", { branch: "feat/search-empty", ago: 25 * M, worked: 18 * M }),
     card("ds", 6, "Tokens: dark theme surfaces", "done", { branch: "tokens-dark", ago: 2 * H, worked: 41 * M, panes: 2 }),
-    card("app", 7, "Spike: offline cart", "idle", { branch: "spike/offline-cart", ago: 1 * D, worked: 1 * H + 12 * M }),
-    card("web", 8, "Footer links audit", "idle", { ago: 3 * D, worked: 6 * M }),
+    card("app", 7, "Spike: offline cart", "idle", { branch: "spike/offline-cart", ago: 3 * H, worked: 1 * H + 12 * M }),
+    card("web", 8, "Footer links audit", "idle", { ago: 3 * D, worked: 6 * M, settled: 2 * D }),
+    card("web", 9, "Header: sticky on scroll", "idle", { ago: 5 * H, worked: 22 * M, settled: 4 * H }),
+    card("ds", 10, "Icon set: 1.75 stroke pass", "idle", { ago: 1 * D, worked: 35 * M, settled: 20 * H }),
   ];
 }
 
