@@ -1,6 +1,6 @@
 {
   "name": "herdr-agent-board",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Set up the Herdr board: Jira panel through your Atlassian connector, dev servers, Claude usage stats.",
   "author": { "name": "Stalin Thomas" }
 }

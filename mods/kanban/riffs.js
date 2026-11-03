@@ -4,7 +4,7 @@
 // ([{ stem, terminal, question }]): the rail tab's count, the cards' chip and column, and it opens
 // the Riff tab when the agent you're on asks (or notifies when another one does).
 
-import { exec, home, readTextFile, watchFolder, terminals, agents, focused, notify, run, shared, setShared } from "herdr";
+import { exec, home, readTextFile, watchFolder, terminals, agents, panes, focused, notify, run, shared, setShared } from "herdr";
 import { railTo, railShows } from "./railtabs.js";
 
 export const RIFF_DIR = () => `${home()}/.cache/herdr-kanban/riff`;
@@ -17,6 +17,26 @@ export function agentLabel(a) {
   if (!a) return "An agent";
   return a.tab_name && !/^\d+$/.test(a.tab_name) ? a.tab_name : a.space_name;
 }
+
+// Which pane an agent is, when its tab has more than one: its branch, else its folder, else its
+// place among the tab's agents. Null when it's the tab's only agent (the tab name says it all).
+export function paneLabel(a) {
+  if (!a) return null;
+  const mates = agents().filter((x) => x.tab === a.tab);
+  if (mates.length < 2) return null;
+  const name = (x) => {
+    const p = panes().find((q) => q.terminal === x.address);
+    return p?.branch || (p?.cwd ? p.cwd.replace(/\/+$/, "").split("/").pop() : null);
+  };
+  const mine = name(a);
+  const nth = `pane ${mates.findIndex((x) => x.address === a.address) + 1}`;
+  if (!mine) return nth;
+  // Two panes on the same branch: the branch alone doesn't tell them apart.
+  return mates.some((x) => x.address !== a.address && name(x) === mine) ? `${mine} · ${nth}` : mine;
+}
+
+// "<tab>" or "<tab> · <pane>": who's asking, told apart from the other agents in its tab.
+export const askerLabel = (a) => [agentLabel(a), paneLabel(a)].filter(Boolean).join(" · ");
 
 // Takes you to the agent's pane with its riff open.
 export function goToRiff(terminal) {
@@ -65,7 +85,7 @@ export function watchRiffs(cx) {
           if (a && a.tab === focused()?.tab) {
             if (railShows() !== "riff") railTo("riff");
           } else {
-            notify({ title: `${agentLabel(a)} needs your call`, body: r.question, level: "info", action: { name: `kanban.riff_${r.terminal}` } });
+            notify({ title: `${askerLabel(a)} needs your call`, body: r.question, level: "info", action: { name: `kanban.riff_${r.terminal}` } });
           }
         }
       }

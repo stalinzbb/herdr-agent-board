@@ -133,15 +133,23 @@ a spring feels), it opens a **riff**: a question with live controls (sliders, co
 selects, springs, easings) in the rail's **Riff** tab, next to its pane. You drag, add a note if you
 like, and **Answer** (or **Skip**). The answer goes straight back to the agent and the riff closes.
 
-- It's contextual: the Riff tab shows the question from the pane you're on. An agent elsewhere that's
-  waiting on you moves to "Needs you" on the board with its question on the card, and you get a
-  notification that takes you there.
+- It's contextual: the Riff tab shows the questions from the tab you're on, the focused pane's first.
+  When several agents share a tab, each riff says which pane asks (`<tab> · <branch>`); click it to go
+  there. An agent elsewhere that's waiting on you moves to "Your turn" on the board with its question
+  on the card, and you get a notification that takes you there.
 - If the agent wrote a live `output` file, your dev server shows each value as you drag.
 - If the agent stopped waiting, your answer is typed into it as a `Riff · …` message instead.
 
-Agents learn how from the `riff` skill (`skills/riff/SKILL.md`, in the plugin): they run
-`mods/kanban/riff.py ask` with a question and DialKit-shaped controls, and get JSON back. You can also
+Agents learn how from the `riff` skill (`skills/riff/SKILL.md`, in the plugin): they plan the
+questions (most impact first, 2 to 8 controls each), run `mods/kanban/riff.py ask` with a question and
+DialKit-shaped controls, and get JSON back. The skill covers live previews for web, React Native,
+the iOS simulator, Flutter and desktop apps, and short rounds where there's no preview. You can also
 just say "riff me the card spacing".
+
+With nothing open, the Riff tab offers a prompt to send: **Ask this agent** on an agent's pane, or one
+button per agent in the tab when you're on another pane (a dev server, a simulator). The prompt names
+the skill and falls back to `riff.py --help`, so it also works in an agent that started before the
+plugin was installed (restart those to load the skill properly).
 
 ## What it runs
 
