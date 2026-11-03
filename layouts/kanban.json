@@ -184,22 +184,12 @@
       },
       "children": [
         {
-          "id": "status-main",
+          "id": "status-bar",
           "type": "block",
-          "content": {
-            "mod": "workspace-status"
-          }
-        },
-        {
-          "id": "usage",
-          "type": "block",
-          "size": {
-            "px": 440
-          },
           "content": {
             "mod": "kanban",
             "props": {
-              "role": "usage"
+              "role": "status"
             }
           }
         }

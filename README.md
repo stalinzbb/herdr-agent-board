@@ -2,7 +2,7 @@
 
 ![Herdr agent board](preview.png)
 
-A layout for [Herdr](https://herdr.dev): your agent tabs as a kanban board, a Dev panel for servers and
+A layout for [Herdr](https://herdr.dev): your agent tabs as a board of whose turn it is, a Dev panel for servers and
 simulators, a Tasks panel (Jira, fed through Claude's Atlassian connector), riffs (an agent asks you a UI question
 with live controls, after [DialKit](https://github.com/joshpuckett/dialkit), and gets your answer back), Claude stats in each
 pane header, and long-term Claude usage and cost stats.
@@ -33,6 +33,24 @@ Everyone's steps are different, so the Tasks panel can be shaped to yours:
 
 It looks at your recent tickets, asks what kinds of work you track and what each status means to you
 (for example "Ready for Dev" is done for a designer, "Won't Do" is hidden), then writes the tabs.
+
+## The board
+
+Every tab is a card. The columns say whose turn it is:
+
+- **Your turn**: the agent asked you something (a permission, a question, a riff), finished, or is waiting
+  for a prompt. Questions come first, then work you haven't looked at. Plain terminals are here too.
+- **Working**: an agent is working.
+- **Done**: tabs you marked done with ✓. They keep running; opening one, or its agent needing you, brings it
+  back. ↺ puts it back without opening it.
+
+The project on a card is its git repo. A **worktree** tag means the card works in a second checkout of
+that repo on its own branch (from **New → Agent in a new worktree…**, Claude's worktrees, or `git worktree`).
+Its changes don't touch your main checkout until you merge.
+
+**New** in the top bar starts everything: an agent or a terminal in a new tab, an agent in a new worktree,
+a split of the pane you're in, or a new project from a folder. Herdr calls a project a *space*; a card is a
+*tab*, and a tab holds *panes*.
 
 ## Where things live
 
