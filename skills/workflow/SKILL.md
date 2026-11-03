@@ -5,7 +5,8 @@ description: Shape the board's Tasks panel around how this person actually works
 
 # Shape the Tasks panel to your workflow
 
-The Tasks panel (Jira underneath) is driven by `~/.config/herdr-board/jira.json`. A preset gives a
+This shapes the Tasks panel's **Jira** tabs, driven by `~/.config/herdr-board/jira.json` (GitHub, Linear
+and the person's own tasks are turned on in `tasks.json` by `/herdr-agent-board:setup`). A preset gives a
 starting point, but teams name their steps differently, and one person's "done" is another's
 "waiting on me". This skill asks how the person works, checks it against their real tickets, and writes
 the result as plain config. It never edits the mod's code or presets, and never moves a ticket.

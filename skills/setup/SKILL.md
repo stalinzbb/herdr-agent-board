@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Set up or re-tune the Herdr board for this person — connect the Jira panel through their Atlassian connector and pick a preset from their real tickets, find their dev servers, set where their repos live, and offer the Claude session hook. Use when someone says "set up the herdr board", "configure the Jira panel", "my Jira panel is empty", "add my dev servers to Herdr", or runs /herdr-agent-board:setup.
+description: Set up or re-tune the Herdr board for this person — choose where the Tasks panel's work comes from (Jira through their Atlassian connector, GitHub issues and PRs through gh, Linear through an API key, their own task list, or several at once, one tab each), find their dev servers, set where their repos live, and offer the Claude session hook. Use when someone says "set up the herdr board", "add GitHub/Linear/Jira to my tasks", "configure the Tasks panel", "my Tasks panel is empty", "add my dev servers to Herdr", or runs /herdr-agent-board:setup.
 ---
 
 # Set up the Herdr board
@@ -12,7 +12,9 @@ missing falls back to `mods/kanban/defaults/<name>.json`.
 
 | File | What it sets |
 |---|---|
-| `jira.json` | Atlassian site and cloudId, the preset and its vars, any overrides |
+| `tasks.json` | Which sources the Tasks panel shows (`jira`, `github`, `linear`, `local`), their labels and queries, the panel's `name` |
+| `jira.json` | Jira's Atlassian site and cloudId, the preset and its vars, any overrides |
+| `tasks.local.json` | The person's own tasks (the panel and agents write it; never edit it during setup) |
 | `dev.json` | Dev servers the Dev panel can start, and the Android SDK path |
 | `prompts.json` | Saved prompts (the board's "Prompt all" popup) |
 | `usage.json` | `code_roots`: folders your repos live in, trimmed from project names in the stats |
@@ -28,7 +30,60 @@ If a file already exists, show what changes rather than replacing it silently.
   themselves — `<this repo>/install.sh` — and wait. Don't run it for them unless they ask.
 - Find the repo folder from `readlink ~/.config/herdr-app/mods/kanban` (a link install) for later steps.
 
-## 1. Jira
+## 1. Task sources
+
+The Tasks panel shows work from any mix of sources, each as its own tab(s); Today gathers the open work
+from all of them. `~/.config/herdr-board/tasks.json` turns them on:
+
+```json
+{ "name": "Tasks",
+  "sources": {
+    "jira":   { "enabled": true },
+    "github": { "enabled": true, "label": "GitHub" },
+    "linear": { "enabled": false },
+    "local":  { "enabled": true, "label": "Mine" } } }
+```
+
+1. **Look first.** What each needs, and how to tell it's there:
+   - Jira: an Atlassian connector in your tools (`mcp__claude_ai_Atlassian__*` or another prefix).
+   - GitHub: `gh auth status` says logged in.
+   - Linear: a personal API key (they make one at linear.app → Settings → Security & access → Personal API keys).
+   - Their own tasks: nothing; always available.
+2. **Ask** which to show (AskUserQuestion, multiSelect), saying for each whether it's connected now. Don't
+   enable a source you can't reach; offer to connect it instead.
+3. Set each chosen source up below, then **write `tasks.json`** with the chosen ones `enabled: true`.
+4. **Check:** `python3 -I ~/.config/herdr-app/mods/kanban/tasks-sync.py config` lists the `sources` and
+   `tabs`; `errors` says what's wrong. Then `tasks-sync.py sync` (GitHub and Linear, seconds) and read
+   `~/.cache/herdr-kanban/github.json` / `linear.json`: each view has `issues` or an `error`.
+
+### GitHub
+
+Uses the `gh` CLI they're signed in to; nothing to store. Not signed in: they run `! gh auth login`.
+The tab has two sections: **Issues** (assigned to them, open, plus ones closed in the last `recent_days`,
+default 14) and **Pull requests** (review requests, then their own open PRs). The searches are GitHub
+search qualifiers and can be narrowed, for example to an org:
+`"issues": "is:open assignee:@me org:acme archived:false"`, likewise `"closed"`, `"prs"`, `"reviews"`.
+Run `gh search issues <query words> --limit 5` once to show them what they'd see. An issue labelled
+"in progress" / "doing" / "wip" counts as in progress. From the panel: close or reopen an issue.
+
+### Linear
+
+Uses Linear's API with a personal key kept in the macOS Keychain. **Never ask for the key in chat.**
+Have them run, with their key in place of `lin_api_…`:
+```
+! security add-generic-password -U -s herdr-board-linear -a linear -w lin_api_…
+```
+(or set `LINEAR_API_KEY` in their shell). Then `tasks-sync.py sync` and read `linear.json`. The tab shows
+issues assigned to them, open ones plus completed in the last `recent_days`; status changes use their
+team's workflow states.
+
+### Their own tasks
+
+`local` is a plain list in `tasks.local.json`: added from the Mine tab, or by any agent with
+`python3 -I ~/.config/herdr-app/mods/kanban/tasks-sync.py add "<title>"`. Statuses: To do, Doing, Done.
+Offer it to everyone; it's how they track what isn't in a tracker.
+
+### Jira
 
 The panel reaches Jira only through a Claude connector (no API token). `jira-sync.py` runs
 `claude -p --model haiku` with the connector's tools allowed and reads the raw tool results.
@@ -103,6 +158,7 @@ Keep any SessionStart hooks already there. Skip if this exact command is already
 ## 5. Check
 
 - `herdr-app check ~/.config/herdr-app/mods/kanban` and `herdr-app check ~/.config/herdr-app/mods/kanban-pane` (it takes a folder) — both must pass.
-- `herdr-app do layout.switch --name kanban`, then `herdr-app do kanban.jira` to open the Jira panel.
-- Tell them the keys: ⌘⇧K board ⇄ classic, ⌘B hide the board, ⌘⇧E dev, ⌘⇧J Jira, ⌘⇧U usage stats.
-- Settings edits apply on the panel's next refresh (⟳ in the Jira panel) or a Herdr restart.
+- `herdr-app do layout.switch --name kanban`, then `herdr-app do kanban.tasks` to open the Tasks panel.
+- Tell them the keys: ⌘⇧K board ⇄ classic, ⌘B hide the board, ⌘⇧E Dev, ⌘⇧J Tasks, ⌘⇧Y Riff, ⌘⇧U usage stats.
+- The panel reloads `tasks.json` and `jira.json` when they change; ⟳ refreshes every source now. Every row
+  has ▶ to start an agent on it.

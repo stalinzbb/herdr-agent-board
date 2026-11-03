@@ -1,0 +1,9 @@
+{
+  "name": "Tasks",
+  "sources": {
+    "jira": { "enabled": true },
+    "github": { "enabled": false, "label": "GitHub" },
+    "linear": { "enabled": false, "label": "Linear" },
+    "local": { "enabled": true, "label": "Mine" }
+  }
+}

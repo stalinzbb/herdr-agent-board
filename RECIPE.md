@@ -29,7 +29,11 @@ what its agent is doing, with the focused tab's terminal below and a side rail f
   countdown, a context bar ("165k / 1M", amber at 70%, red at 90%) and the model name.
 - **Rail** (364px, right): a Dev | Tasks | Riff switch (40px; the name comes from `name` in jira.json), then:
   - Dev: running servers and simulators/devices first; everything else folded under "Not running".
-  - Tasks (Jira): tabs from the config (Today plus the preset's or your own tabs; opens on `default_tab`), "Updated Xm ago", ⟳ and ✎. Today shows
+  - Tasks: tabs from every enabled source (`tasks.json`, merged by `tasks-sync.py config`): Today, Jira's
+    preset tabs, GitHub (Issues, Pull requests), Linear, Mine (an "Add a task" field on top); opens on
+    `default_tab`. "Updated Xm ago", ⟳ (every source) and ✎ (tasks.json). With no tracker connected, a card
+    says to run setup. Every row: status pill (move menu per source), key (not for your own tasks), ▶ starts
+    an agent on it (tab.new with your first agent and the task as its first message). Today shows
     the digest (mentions, comments, status changes, quiet tickets) and one card per kind of work with
     in-progress and fresh to-dos. Other tabs group by status (In progress, To do with "Show N older",
     Done folded, 5 at a time; `status_map` decides what each status counts as, or hides it) or by parent story. Rows are two lines: title, then a status pill (click to
@@ -85,6 +89,12 @@ shadows never both, color only for status and data.
   answer file; riff.py prints it and deletes the riff. If the file is still there 3 s later, nobody's
   waiting: the panel types a `Riff · <question>: …` message with `hc send` (none for a silent skip) and
   deletes the riff itself.
+- Tasks sources: Jira through jira-sync.py (as before); GitHub (`gh search issues/prs`) and Linear (GraphQL,
+  key from the Keychain) through `tasks-sync.py sync` into `github.json` / `linear.json` every `fast_minutes`;
+  your own tasks are `~/.config/herdr-board/tasks.local.json`, written by the panel and `tasks-sync.py add`,
+  watched so an agent's additions show at once. Every row has Jira's shape plus `source`, `url`, `id`.
+  The status menu: Jira transitions; Linear states (`tasks-sync.py states/move`, same transitions-/action-
+  files); GitHub `gh issue close|reopen`; local To do / Doing / Done / Delete.
 - Tasks: refreshes from Jira every 30 minutes in weekday work hours; the digest runs once a day after `digest_at`
   and notifies.
 
