@@ -1,8 +1,8 @@
 // The board: one card per tab, in a column by its agents' status. Plus its top bar.
 
-import { div, svg } from "gpui-kit";
+import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgentOrder, openOverlay, home } from "herdr";
+import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgentOrder, openOverlay, home, window } from "herdr";
 import { ICON, STATUS, pal, ago, dot, progIcon, iconBtn, tilde } from "./ui.js";
 import { railTo } from "./railtabs.js";
 import { demo, demoCards } from "./demo.js";
@@ -175,14 +175,19 @@ export function bar() {
   const active = spaces().find((s) => s.active);
   const scopeName = demo() ? "Demo" : scope() === "space" ? (active?.name === "~" ? "Home" : active?.name ?? "") : "All spaces";
   const live = agents().map((a) => a.address);
+  // macOS draws its window buttons over the bar (traffic_lights at x 14); leave them room
+  // only while they show. Full screen hides them.
+  const win = window();
+  const lights = win.buttons && !win.fullscreen;
   return h_flex()
     .size_full()
-    .pl(84)
+    .pl(lights ? 84 : 14)
     .pr(10)
     .gap(4)
     .items_center()
     .bg(p.col)
     .text_color(p.ink)
+    .child(image("mods/kanban/herdr.png").w(22).h(22).flex_none().mr(6))
     .child(div().text_size(14).font_semibold().child("Board"))
     .child(div().px(6).text_size(13).text_color(p.faint).child("/"))
     .child(div().text_size(13).text_color(p.muted).child(scopeName))
@@ -280,7 +285,7 @@ function card(p, c) {
   const when = !tab.working_since && tab.changed_at ? (now - tab.changed_at < 60000 ? "just now" : `${ago(now - tab.changed_at)} ago`) : null;
   const last = tab.demo_worked ? { ms: tab.demo_worked } : lastRuns()[tab.id];
   const worked = !tab.working_since && last?.ms ? `worked ${dur(last.ms)}` : null;
-  const branch = space.branch ?? lead?.branch;
+  const branch = lead?.branch ?? space.branch; // the tab's own agent, not the space's first terminal
   const proj = project(space, lead);
   return v_flex()
     .id(`card-${tab.id}`)

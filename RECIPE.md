@@ -7,7 +7,7 @@ what its agent is doing, with the focused tab's terminal below and a side rail f
 
 ## What you see
 
-- **Bar** (48px, window drag area): "Board / <space>" on the left; a red "Needs you" count; an
+- **Bar** (48px, window drag area): the Herdr logo (`mods/kanban/herdr.png`, from the app icon) and "Board / <space>" on the left; a red "Needs you" count; an
   All spaces / This space switch; text buttons Prompt all, Board ⌘B, Dev ⌘⇧E, Tasks ⌘⇧J, Classic ⌘⇧K;
   a white "+ New card" button.
 - **Board** (weight 2): four rounded columns (radius 16, chrome color): Needs you (red dot), In progress
