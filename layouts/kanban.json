@@ -159,6 +159,16 @@
                       "role": "jira"
                     }
                   }
+                },
+                {
+                  "id": "riff",
+                  "type": "block",
+                  "content": {
+                    "mod": "kanban",
+                    "props": {
+                      "role": "riff"
+                    }
+                  }
                 }
               ]
             }

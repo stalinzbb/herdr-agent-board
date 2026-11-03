@@ -36,11 +36,13 @@ export function demoCards() {
     column: status,
     current: !!o.current,
     demo_dev: o.dev ?? null,
+    riff: o.riff ?? null,
   });
   return [
     card("web", 0, "Checkout: save card for later", "blocked", { branch: "feat/saved-cards", subtitle: "Wants to run the payment migrations", ago: 2 * M }),
     card("app", 1, "Fix Android back gesture on cart sheet", "blocked", { branch: "fix/cart-back", ago: 9 * M }),
-    card("web", 2, "Product page: new image gallery", "working", { branch: "feat/gallery", working: 14 * M, current: true, subs: ["Explore", "Plan"],
+    card("web", 2, "Product page: new image gallery", "blocked", { branch: "feat/gallery", ago: 1 * M, current: true, subs: ["Explore", "Plan"],
+      riff: { demo: true, question: "Which thumbnail spacing feels right?" },
       dev: { servers: [{ id: "web", name: "Web", port: 3000, url: "http://localhost:3000" }], others: [], devices: false, sims: [], android: [] } }),
     card("app", 3, "Onboarding: three-step welcome", "working", { branch: "feat/welcome", working: 37 * M,
       dev: { servers: [{ id: "metro", name: "Metro", port: 8081, devices: true }], others: [], devices: true, sims: [{ name: "iPhone 17 Pro" }], android: [] } }),
@@ -106,6 +108,21 @@ export function demoJira() {
   };
   return { data, digest, status: { state: "ok", mode: "digest", at: now - 6 * M } };
 }
+
+// The Riff panel's demo: an agent asking which gallery spacing feels right.
+export const DEMO_RIFF = {
+  terminal: "demo",
+  question: "Which thumbnail spacing feels right?",
+  about: "src/components/Gallery.tsx",
+  controls: {
+    gap: [12, 0, 32, 2],
+    thumbnail: [72, 48, 120, 4],
+    radius: [8, 0, 24],
+    columns: { type: "select", options: ["4", "5", "6"] },
+    captions: false,
+    hover: { type: "spring", visualDuration: 0.25, bounce: 0.1 },
+  },
+};
 
 export const DEMO_USAGE = {
   at: Date.now(),
