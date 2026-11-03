@@ -19,6 +19,9 @@ import { RIFF_DIR, isSpec, stemOf, riffs, agentLabel, goToRiff } from "./riffs.j
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+// What the empty panel offers to send: works for whatever the agent just built.
+const SAMPLE = "Riff me the values of what you just built that are a matter of taste (spacing, sizes, colors, timing).";
+
 // ---- reading a DialKit config
 
 const COLOR = /^(#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|(rgba?|hsla?|oklch|oklab|lab|lch|color)\(.*\))$/i;
@@ -446,13 +449,32 @@ export class Riff {
       .when(elsewhere.length > 0, (el) => el.child(this.waitingView(p, elsewhere)));
   }
 
+  // Nothing open here: one line, and a prompt to get one, ready to copy or send to this pane's agent.
   emptyView(p) {
-    const line = (t, c) => div().text_size(12).text_color(c ?? p.faint).child(t);
-    return v_flex().flex_none().mx(12).mt(12).p(12).gap(6).rounded(16).bg(p.card)
-      .child(line("Nothing to answer here", p.muted))
-      .child(line("When the agent in this pane needs your call on something visual (spacing, a color, which variant, how an animation feels), it opens a riff here: a question with live controls. Drag, answer, and it closes."))
-      .child(line("You can also ask for one: “riff me the card spacing”."))
-      .child(div().pt(2).text_size(11).text_color(p.faint).child("⌘⇧Y · after DialKit, by Josh Puckett"));
+    const agent = demo() ? null : agents().find((a) => a.address === focused()?.terminal);
+    const btn = (id, label, onPress, primary) => div().id(id).flex_none().h(26).px(10).flex().items_center().rounded(8).text_size(12).font_medium()
+      .bg(primary ? p.ink : p.raised).text_color(primary ? p.ground : p.muted)
+      .cursor_pointer().hover((s) => s.opacity(0.9)).active((s) => s.opacity(0.75))
+      .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); onPress(cx); })
+      .child(label);
+    return v_flex().flex_none().mx(12).mt(12).p(8).gap(8).rounded(16).bg(p.card)
+      .child(div().px(4).pt(2).text_size(12.5).text_color(p.muted).child("No questions from this agent"))
+      .child(div().px(10).py(8).rounded(8).bg(p.ground).text_size(12.5).text_color(p.ink).child(SAMPLE))
+      .child(h_flex().gap(6).justify_end()
+        .child(btn("riff-copy", this.copied ? "Copied" : "Copy", (cx) => {
+          cx.spawn(async (cx) => {
+            await exec("/bin/sh", ["-c", 'printf %s "$1" | pbcopy', "sh", SAMPLE]).catch(() => null);
+            this.copied = true; cx.notify();
+            await new Promise((r) => cx.timer.after(1500, r));
+            this.copied = false; cx.notify();
+          });
+        }))
+        .when(!!agent, (el) => el.child(btn("riff-ask", "Ask this agent", (cx) => {
+          cx.spawn(async () => {
+            const r = await exec("hc", ["send", agent.address, SAMPLE]).catch((e) => ({ code: 1, stderr: String(e) }));
+            notify(r.code === 0 ? { title: "Asked for a riff", level: "success", timeout: 2000 } : { title: "Couldn't reach the agent", body: (r.stderr || "").trim().slice(0, 160), level: "warning" });
+          });
+        }, true))));
   }
 
   // Other agents waiting on you: one row each, click to go there.

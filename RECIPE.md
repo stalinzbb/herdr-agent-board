@@ -45,8 +45,8 @@ what its agent is doing, with the focused tab's terminal below and a side rail f
     and spring/easing/pad groups (28px header, children indented 12), action buttons. Changed labels
     turn ink with a 5px accent dot. Then a composer (note + Answer, radius 12 around an 8 button at 4px
     inset) and a line: status ("N changes · Enter answers", "Live → <output>", "Sent"), Reset, Skip.
-    Nothing here: a card saying what riffs are, "riff me the card spacing", and "after DialKit, by Josh
-    Puckett". Below: "Waiting on you elsewhere · N", one row per other agent's riff; click to go there.
+    Nothing here: "No questions from this agent", a sample prompt ("Riff me the values of what you just
+    built…") on a canvas-colored block, and Copy (pbcopy) / Ask this agent (hc send to the focused agent). Below: "Waiting on you elsewhere · N", one row per other agent's riff; click to go there.
   - Cards: an agent with an open riff goes to Needs you and shows a red "Your call <question>" chip.
 - **Status bar** (28px, role status): left, where the pane you're in works: machine (only if another
   one), the repo, ⎇ branch and a "worktree" tag. Right: a red dot + count waiting on you, an amber dot +
