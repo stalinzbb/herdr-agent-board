@@ -10,7 +10,7 @@
 // The idea and the control shapes come from DialKit by Josh Puckett (github.com/joshpuckett/dialkit),
 // rebuilt natively for Herdr (no DialKit code).
 
-import { div, svg } from "gpui-kit";
+import { View, div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, SliderState, Slider, SliderTrack, SliderIndicator, SliderThumb } from "gpui-base";
 import { exec, home, readTextFile, writeTextFile, watchFolder, terminals, agents, focused, notify, settings } from "herdr";
 import { ICON, STATUS, pal, tilde, dot } from "./ui.js";
@@ -213,6 +213,34 @@ function makeStates(panel, self) {
 function releaseStates(panel, keepNote) {
   for (const st of Object.values(panel.states)) { st.slider?.release(); st.field?.release(); }
   if (!keepNote) panel.note?.release();
+  panel.maker?.release();
+}
+
+// Native states (sliders, fields) need a live host call: `init` or an event handler. The scan runs
+// in a task, and after an await a task isn't in one: making them there throws "[uninitialized]",
+// and from a timer callback it aborted Herdr. A task may create a nested view, and a view's `init`
+// is a host call, so each riff's states are made in the init of a small view of its own.
+const MAKING = new Map(); // key -> the job its StateMaker runs in init
+let makingKey = 0;
+
+class StateMaker extends View {
+  init(props) {
+    const job = MAKING.get(props?.key);
+    MAKING.delete(props?.key);
+    job?.();
+  }
+  render() { return ""; }
+}
+
+async function makeStatesInView(cx, panel, self) {
+  const key = ++makingKey;
+  let failure = null;
+  MAKING.set(key, () => { try { makeStates(panel, self); } catch (e) { failure = e; } });
+  panel.maker = cx.new(StateMaker, { key });
+  // Its init runs before this host entry returns: give it a moment, then check it ran.
+  for (let i = 0; i < 50 && MAKING.has(key); i++) await cx.sleep(10);
+  if (MAKING.has(key)) { MAKING.delete(key); throw new Error("its controls weren't made"); }
+  if (failure) throw failure;
 }
 
 // Values as the app reads them: nested like `controls`, groups as one object ({ type: "spring", ... }).
@@ -253,7 +281,7 @@ export class Riff {
     cx.spawn(async (cx) => {
       await exec("mkdir", ["-p", RIFF_DIR()]).catch(() => null);
       for (;;) {
-        await this.scan(cx).catch((e) => { this.scanError = String(e?.message ?? e); });
+        await this.scan(cx).then(() => { this.scanError = null; }, (e) => { this.scanError = String(e?.message ?? e); });
         cx.notify();
         await new Promise((r) => { this.wake = r; cx.timer.after(4000, tick); });
       }
@@ -316,7 +344,12 @@ export class Riff {
       try { saved = JSON.parse((await readTextFile(`${RIFF_DIR()}/${stem}.values.json`)) ?? "null"); } catch {}
     }
     const panel = buildPanel(stem, text, spec, old?.leaves ? old : null, saved);
-    makeStates(panel, this);
+    try {
+      await makeStatesInView(cx, panel, this);
+    } catch (e) {
+      releaseStates(panel, !!old);
+      throw e;
+    }
     if (old) releaseStates(old, true);
     this.panels.set(stem, panel);
     this.flush(panel, cx);
