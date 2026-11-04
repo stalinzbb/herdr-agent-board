@@ -10,7 +10,7 @@
 // The idea and the control shapes come from DialKit by Josh Puckett (github.com/joshpuckett/dialkit),
 // rebuilt natively for Herdr (no DialKit code).
 
-import { View, div, svg } from "gpui-kit";
+import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, SliderState, Slider, SliderTrack, SliderIndicator, SliderThumb } from "gpui-base";
 import { exec, home, readTextFile, writeTextFile, watchFolder, terminals, agents, focused, notify, settings } from "herdr";
 import { ICON, STATUS, pal, tilde, dot } from "./ui.js";
@@ -213,35 +213,13 @@ function makeStates(panel, self) {
 function releaseStates(panel, keepNote) {
   for (const st of Object.values(panel.states)) { st.slider?.release(); st.field?.release(); }
   if (!keepNote) panel.note?.release();
-  panel.maker?.release();
 }
 
-// Native states (sliders, fields) need a live host call: `init` or an event handler. The scan runs
-// in a task, and after an await a task isn't in one: making them there throws "[uninitialized]",
-// and from a timer callback it aborted Herdr. A task may create a nested view, and a view's `init`
-// is a host call, so each riff's states are made in the init of a small view of its own.
-const MAKING = new Map(); // key -> the job its StateMaker runs in init
-let makingKey = 0;
-
-class StateMaker extends View {
-  init(props) {
-    const job = MAKING.get(props?.key);
-    MAKING.delete(props?.key);
-    job?.();
-  }
-  render() { return ""; }
-}
-
-async function makeStatesInView(cx, panel, self) {
-  const key = ++makingKey;
-  let failure = null;
-  MAKING.set(key, () => { try { makeStates(panel, self); } catch (e) { failure = e; } });
-  panel.maker = cx.new(StateMaker, { key });
-  // Its init runs before this host entry returns: give it a moment, then check it ran.
-  for (let i = 0; i < 50 && MAKING.has(key); i++) await cx.sleep(10);
-  if (MAKING.has(key)) { MAKING.delete(key); throw new Error("its controls weren't made"); }
-  if (failure) throw failure;
-}
+// Native states (sliders, fields) need a live host call with a window: `init` or an event handler.
+// The scan is a task, and neither a task after an await, a timer callback (it aborted Herdr) nor
+// the init of a nested view the task creates is one: making them there throws "[uninitialized]".
+// So the scan only reads riffs; their controls are made by the panel's pointer handlers, the moment
+// you move onto the Riff tab, and until then a riff shows its values as text.
 
 // Values as the app reads them: nested like `controls`, groups as one object ({ type: "spring", ... }).
 function nested(panel) {
@@ -266,6 +244,7 @@ const changedMap = (panel) => Object.fromEntries(changesOf(panel).map((l) => [l.
 export class Riff {
   constructor() {
     this.panels = new Map(); // stem -> panel
+    this.retired = []; // replaced panels whose native states wait for an event to be released
     this.written = {}; // path -> the text we last wrote there
   }
 
@@ -295,6 +274,26 @@ export class Riff {
     });
   }
 
+  // From a pointer event (a live host call): make the controls of riffs that arrived since, and
+  // release the ones of riffs that closed or changed.
+  makePending(cx) {
+    for (const [old, keepNote] of this.retired.splice(0)) releaseStates(old, keepNote);
+    let made = false;
+    for (const panel of this.panels.values()) {
+      if (!panel.pending) continue;
+      try {
+        makeStates(panel, this);
+        panel.pending = false;
+        made = true;
+      } catch (e) {
+        panel.error = `Couldn't make its controls: ${e?.message ?? e}`;
+        panel.pending = false;
+        panel.broken = true;
+      }
+    }
+    if (made) cx.notify();
+  }
+
   // The bar's list has a riff this panel hasn't loaded (or failed to): scan now, not at the next tick.
   catchUp() {
     if (demo() || Date.now() - (this.scanned ?? 0) < 1000) return;
@@ -309,7 +308,8 @@ export class Riff {
     for (const stem of [...this.panels.keys()]) {
       if (!stems.includes(stem)) {
         // Closed (answered, or by the agent): forget what we wrote, so a new riff with this id writes afresh.
-        releaseStates(this.panels.get(stem));
+        const gone = this.panels.get(stem);
+        if (!gone.pending) this.retired.push([gone, false]);
         this.panels.delete(stem);
         for (const s of [".json", ".values.json", ".answer.json"]) delete this.written[`${RIFF_DIR()}/${stem}${s}`];
       }
@@ -344,13 +344,11 @@ export class Riff {
       try { saved = JSON.parse((await readTextFile(`${RIFF_DIR()}/${stem}.values.json`)) ?? "null"); } catch {}
     }
     const panel = buildPanel(stem, text, spec, old?.leaves ? old : null, saved);
-    try {
-      await makeStatesInView(cx, panel, this);
-    } catch (e) {
-      releaseStates(panel, !!old);
-      throw e;
+    panel.pending = true;
+    if (old) {
+      // The new panel keeps the old one's note field; only its other states go.
+      if (old.pending) panel.note = null; else this.retired.push([old, true]);
     }
-    if (old) releaseStates(old, true);
     this.panels.set(stem, panel);
     this.flush(panel, cx);
   }
@@ -468,7 +466,7 @@ export class Riff {
 
   close(panel, cx) {
     this.panels.delete(panel.stem);
-    releaseStates(panel);
+    if (!panel.pending) this.retired.push([panel, false]);
     const files = [".json", ".values.json", ".answer.json"].map((s) => `${RIFF_DIR()}/${panel.stem}${s}`);
     for (const f of files) delete this.written[f];
     cx.spawn(async (cx) => { await exec("rm", ["-f", ...files]).catch(() => null); cx.notify(); });
@@ -518,6 +516,9 @@ export class Riff {
       .text_color(p.ink)
       .overflow_y_scrollbar()
       .pb(16)
+      .on_hover((_h, cx) => this.makePending(cx))
+      .on_mouse_move((_e, cx) => { if ([...this.panels.values()].some((x) => x.pending) || this.retired.length) this.makePending(cx); })
+      .on_mouse_down("left", (_e, cx) => this.makePending(cx))
       .children(here.map((panel) => this.riffView(p, panel)))
       .when(full.length > 0, (el) => el
         .child(div().px(16).pt(12).text_size(12).font_medium().text_color(p.muted).child(`Nothing from this tab · waiting on you elsewhere · ${full.length}`))
@@ -616,14 +617,21 @@ export class Riff {
         .child(div().text_size(14).font_medium().child(panel.spec.question ?? panel.stem))
         .when(!!panel.spec.about, (el) => el.child(div().truncate().text_size(11.5).text_color(p.faint).child(panel.spec.about))))
       .when(!!panel.error, (el) => el.child(div().px(16).pt(4).text_size(12).text_color(STATUS.blocked).child(panel.error)))
-      .child(v_flex().mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
+      // No controls yet (made on your first pointer move here): its values as text.
+      .when(panel.pending || panel.broken, (el) => el.child(v_flex().mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
+        .children(panel.leaves.map((l) => h_flex().h(28).pl(10).pr(10).gap(8).items_center().rounded(8).bg(p.ground)
+          .child(div().text_size(12).text_color(p.muted).child(l.label))
+          .child(div().flex_1())
+          .child(div().text_size(12).font_family("Geist Mono").text_color(p.ink).child(fmt(panel.values[l.path])))))
+        .when(!panel.broken, (el) => el.child(div().px(4).pt(2).text_size(11.5).text_color(p.faint).child("Point here to change these")))))
+      .when(!panel.pending && !panel.broken, (el) => el.child(v_flex().mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
         .children(this.nodes(p, panel, panel.nodes))
         .child(div().h(4))
         .child(composer(p, `ans-${panel.stem}`, panel.note, panel.focus === "__note", !panel.answered, !!panel.answered, "Answer", (cx) => this.answer(panel, cx, "answered")))
         .child(h_flex().px(4).pt(2).gap(8).items_center()
           .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(p.faint).child(status))
           .when(changed > 0 && !panel.answered, (el) => el.child(textBtn(p, `rst-${panel.stem}`, "Reset", (_e, cx) => this.reset(panel, cx))))
-          .when(!panel.answered, (el) => el.child(textBtn(p, `skip-${panel.stem}`, "Skip", (_e, cx) => this.answer(panel, cx, "skipped"))))));
+          .when(!panel.answered, (el) => el.child(textBtn(p, `skip-${panel.stem}`, "Skip", (_e, cx) => this.answer(panel, cx, "skipped")))))));
   }
 
   nodes(p, panel, nodes) {
