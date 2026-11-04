@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Riff: ask the person a UI question with live controls, in the Herdr board's rail.
 
-  riff.py ask [--timeout S] [--no-wait] < spec.json   open a riff and wait for the answer (prints JSON)
-  riff.py wait [ID] [--timeout S]                      keep waiting on an open riff
+  riff.py ask [--timeout S] [--no-wait] < spec.json   open a riff, wait up to 20 s for the answer (prints JSON)
+  riff.py wait [ID] [--timeout S]                      wait on an open riff again (20 s)
   riff.py values [ID]                                  what the person has set so far (prints JSON)
   riff.py close [ID]                                   close this agent's riff (all of them without ID)
 
@@ -30,8 +30,10 @@ the answer comes back to it, so run it from your own pane (a subagent of yours s
 
 Answer: {"status": "answered" | "skipped" | "closed", "values": {...}, "changed": {"path": {"from", "to"}},
          "note": "...", "action": "path of a pressed action button" | null}
-Exit 0 with an answer. Exit 3 when --timeout passes first: the riff stays open; run `wait` again, or
-carry on and the answer is typed into this terminal as a "Riff · ..." message. Exit 1 on a mistake.
+Exit 0 with an answer. Exit 3 when --timeout passes first: the riff stays open. Then end your turn
+(say the riff is open in the rail); the answer is typed into this terminal as a "Riff · ..." message,
+and that is your next turn. Don't sit in a long wait: the pane looks busy while the person is the one
+who has to act, and they can't talk to you. Exit 1 on a mistake.
 Only works inside Herdr ($HC_TERMINAL_ID).
 """
 import json
@@ -109,7 +111,7 @@ def wait(stem, timeout):
             return 0
         time.sleep(0.4)
     rid = stem.split("-", 1)[1]
-    print(json.dumps({"status": "open", "id": rid, "hint": f"Still open. Run `riff.py wait {rid}` to keep waiting, or carry on: the answer will be typed into this terminal as a \"Riff · ...\" message."}))
+    print(json.dumps({"status": "open", "id": rid, "hint": f"Still open in the Riff tab. End your turn now (say it's open in the rail): the answer will be typed into this terminal as a \"Riff · ...\" message. Don't wait longer."}))
     return 3
 
 
@@ -130,8 +132,9 @@ def main(argv):
     no_wait = "--no-wait" in args
     if no_wait:
         args.remove("--no-wait")
-    # Under Claude Code's default 2-minute command limit; pass more with a longer Bash timeout.
-    timeout = float(flag(args, "--timeout", 100))
+    # Short: answers right away when they're looking; otherwise the agent ends its turn and the
+    # answer arrives as a typed "Riff · ..." message, so its pane isn't stuck looking busy.
+    timeout = float(flag(args, "--timeout", 20))
     rid = args[0] if args else None
 
     if cmd == "ask":

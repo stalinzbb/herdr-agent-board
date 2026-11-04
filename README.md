@@ -136,7 +136,10 @@ like, and **Answer** (or **Skip**). The answer goes straight back to the agent a
 - It's contextual: the Riff tab shows the questions from the tab you're on, the focused pane's first.
   When several agents share a tab, each riff says which pane asks (`<tab> · <branch>`); click it to go
   there. An agent elsewhere that's waiting on you moves to "Your turn" on the board with its question
-  on the card, and you get a notification that takes you there.
+  on the card, and you get a notification that takes you there. When the tab you're on has no riff,
+  the other tabs' riffs show in full, so you can answer from anywhere.
+- Agents don't sit waiting: `riff.py ask` waits 20 seconds, then the agent ends its turn and your
+  answer arrives in its pane as a message. Its pane shows it's your turn, not that it's working.
 - If the agent wrote a live `output` file, your dev server shows each value as you drag.
 - If the agent stopped waiting, your answer is typed into it as a `Riff · …` message instead.
 

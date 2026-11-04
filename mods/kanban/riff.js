@@ -245,21 +245,39 @@ export class Riff {
     // Made once here: native states can't be made while drawing.
     this.demoPanel = buildPanel("demo", "", DEMO_RIFF, null, null);
     makeStates(this.demoPanel, this);
+    // Folder events can stop coming (the watch fails, or an event names only riff.py's temp file),
+    // and the bar's list doesn't depend on them. So scan on any event, on a slow timer, and whenever
+    // the bar lists a riff this panel hasn't got: the panel can't fall behind the list again.
+    this.wake = null;
+    const tick = () => { const w = this.wake; this.wake = null; w?.(); };
     cx.spawn(async (cx) => {
       await exec("mkdir", ["-p", RIFF_DIR()]).catch(() => null);
-      await this.scan(cx);
-      cx.notify();
+      for (;;) {
+        await this.scan(cx).catch((e) => { this.scanError = String(e?.message ?? e); });
+        cx.notify();
+        await new Promise((r) => { this.wake = r; cx.timer.after(4000, tick); });
+      }
+    });
+    cx.spawn(async () => {
       for (;;) {
         const changed = await watchFolder(RIFF_DIR()).catch(() => null);
         if (!changed) { await new Promise((r) => cx.timer.after(5000, r)); continue; }
-        if (changed.some(isSpec)) { await this.scan(cx); cx.notify(); }
+        if (changed.some((p) => isSpec(p) || p.endsWith(".json.tmp"))) tick();
       }
     });
   }
 
+  // The bar's list has a riff this panel hasn't loaded (or failed to): scan now, not at the next tick.
+  catchUp() {
+    if (demo() || Date.now() - (this.scanned ?? 0) < 1000) return;
+    if (riffs().some((r) => !this.panels.has(r.stem) && !this.broken?.[r.stem])) this.wake?.();
+  }
+
   async scan(cx) {
+    this.scanned = Date.now();
     const ls = await exec("/bin/ls", ["-1", RIFF_DIR()]).catch(() => ({ stdout: "" }));
     const stems = ls.stdout.split("\n").filter(isSpec).map(stemOf);
+    this.broken = Object.fromEntries(Object.entries(this.broken ?? {}).filter(([s]) => stems.includes(s)));
     for (const stem of [...this.panels.keys()]) {
       if (!stems.includes(stem)) {
         // Closed (answered, or by the agent): forget what we wrote, so a new riff with this id writes afresh.
@@ -268,29 +286,40 @@ export class Riff {
         for (const s of [".json", ".values.json", ".answer.json"]) delete this.written[`${RIFF_DIR()}/${stem}${s}`];
       }
     }
+    // One riff that can't be shown never stops the others: its error shows in its place.
     for (const stem of stems) {
-      const text = await readTextFile(`${RIFF_DIR()}/${stem}.json`).catch(() => null);
-      const old = this.panels.get(stem);
-      if (!text || text === old?.text) continue;
-      let spec;
       try {
-        spec = JSON.parse(text);
-        if (!spec || typeof spec !== "object" || typeof spec.controls !== "object") throw new Error("needs a \"controls\" object");
+        await this.load(stem, cx);
+        delete this.broken[stem];
       } catch (e) {
-        // A half-written file: keep showing the last good one.
-        if (old) old.error = String(e?.message ?? e);
-        continue;
+        this.broken[stem] = String(e?.message ?? e);
       }
-      let saved = null;
-      if (!old) {
-        try { saved = JSON.parse((await readTextFile(`${RIFF_DIR()}/${stem}.values.json`)) ?? "null"); } catch {}
-      }
-      const panel = buildPanel(stem, text, spec, old?.leaves ? old : null, saved);
-      if (old) releaseStates(old, true);
-      makeStates(panel, this);
-      this.panels.set(stem, panel);
-      this.flush(panel, cx);
     }
+  }
+
+  async load(stem, cx) {
+    const text = await readTextFile(`${RIFF_DIR()}/${stem}.json`);
+    const old = this.panels.get(stem);
+    if (text == null) throw new Error("couldn't read its file");
+    if (text === old?.text) return;
+    let spec;
+    try {
+      spec = JSON.parse(text);
+      if (!spec || typeof spec !== "object" || typeof spec.controls !== "object") throw new Error("needs a \"controls\" object");
+    } catch (e) {
+      // A half-written file: keep showing the last good one.
+      if (old) { old.error = String(e?.message ?? e); return; }
+      throw e;
+    }
+    let saved = null;
+    if (!old) {
+      try { saved = JSON.parse((await readTextFile(`${RIFF_DIR()}/${stem}.values.json`)) ?? "null"); } catch {}
+    }
+    const panel = buildPanel(stem, text, spec, old?.leaves ? old : null, saved);
+    makeStates(panel, this);
+    if (old) releaseStates(old, true);
+    this.panels.set(stem, panel);
+    this.flush(panel, cx);
   }
 
   // Writes the values (coalesced: as fast as the disk takes them, never two at once).
@@ -432,6 +461,8 @@ export class Riff {
     if (demo()) return [this.demoPanel];
     const f = focused();
     const tab = new Set(agents().filter((a) => a.tab === f?.tab).map((a) => a.address));
+    // A focused agent shown from another tab (a layout block) still owns its riffs here.
+    for (const t of [f?.terminal, f?.agent]) if (t) tab.add(t);
     return [...this.panels.values()]
       .filter((p) => tab.has(p.spec.terminal))
       .sort((a, b) => (b.spec.terminal === f?.terminal) - (a.spec.terminal === f?.terminal) || b.seen - a.seen);
@@ -439,9 +470,14 @@ export class Riff {
 
   render() {
     const p = pal();
+    this.catchUp();
     const here = this.here();
     const shown = new Set(here.map((x) => x.stem));
     const elsewhere = demo() ? [] : riffs().filter((r) => !shown.has(r.stem));
+    // Nothing from this tab: the other tabs' riffs show in full, newest first, so you can answer
+    // from here (the answer still goes to the agent that asked); "<who> asks" takes you there.
+    const full = here.length ? [] : elsewhere.map((r) => this.panels.get(r.stem)).filter(Boolean).sort((a, b) => b.seen - a.seen);
+    const rows = elsewhere.filter((r) => !full.some((x) => x.stem === r.stem));
     return v_flex()
       .id("riff")
       .size_full()
@@ -450,8 +486,12 @@ export class Riff {
       .overflow_y_scrollbar()
       .pb(16)
       .children(here.map((panel) => this.riffView(p, panel)))
-      .when(!here.length, (el) => el.child(this.emptyView(p)))
-      .when(elsewhere.length > 0, (el) => el.child(this.waitingView(p, elsewhere)));
+      .when(full.length > 0, (el) => el
+        .child(div().px(16).pt(12).text_size(12).font_medium().text_color(p.muted).child(`Nothing from this tab · waiting on you elsewhere · ${full.length}`))
+        .children(full.map((panel) => this.riffView(p, panel))))
+      .when(rows.length > 0, (el) => el.child(this.waitingView(p, rows, full.length > 0 || here.length > 0)))
+      .when(!here.length, (el) => el.child(this.emptyView(p, elsewhere.length > 0)))
+      .when(!!this.scanError, (el) => el.child(div().px(16).pt(8).text_size(11.5).text_color(STATUS.blocked).child(`Riff couldn't read its folder: ${this.scanError}`)));
   }
 
   // Who "Ask" sends to: the focused pane's agent. If you're on a pane that isn't one (a dev
@@ -465,8 +505,10 @@ export class Riff {
   }
 
   // Nothing open in this tab: one line, and a prompt to get one, ready to copy or send to an agent here.
-  emptyView(p) {
+  // While riffs wait elsewhere it folds to one row, so they stay on top.
+  emptyView(p, compact) {
     const targets = this.askTargets();
+    const open = !compact || this.askOpen;
     const btn = (id, label, onPress, primary) => div().id(id).flex_none().h(26).px(10).flex().items_center().rounded(8).text_size(12).font_medium()
       .bg(primary ? p.ink : p.raised).text_color(primary ? p.ground : p.muted)
       .cursor_pointer().hover((s) => s.opacity(0.9)).active((s) => s.opacity(0.75))
@@ -479,25 +521,31 @@ export class Riff {
     // On an agent's pane: "Ask this agent". On another pane: a button per agent in the tab, by name.
     const onAgent = targets.length === 1 && targets[0].address === (focused()?.terminal ?? focused()?.agent);
     const askLabel = (a) => (onAgent ? "Ask this agent" : `Ask ${paneLabel(a) ?? askerLabel(a)}`);
+    const title = targets.length > 1 ? "No questions from the agents in this tab" : "No questions from this agent";
     return v_flex().flex_none().mx(12).mt(12).p(8).gap(8).rounded(16).bg(p.card)
-      .child(div().px(4).pt(2).text_size(12.5).text_color(p.muted).child(targets.length > 1 ? "No questions from the agents in this tab" : "No questions from this agent"))
-      .child(div().px(10).py(8).rounded(8).bg(p.ground).text_size(12.5).text_color(p.ink).child(SAMPLE))
-      .child(h_flex().gap(6).justify_end().flex_wrap()
-        .child(btn("riff-copy", this.copied ? "Copied" : "Copy", (cx) => {
-          cx.spawn(async (cx) => {
-            await exec("/bin/sh", ["-c", 'printf %s "$1" | pbcopy', "sh", SAMPLE]).catch(() => null);
-            this.copied = true; cx.notify();
-            await new Promise((r) => cx.timer.after(1500, r));
-            this.copied = false; cx.notify();
-          });
-        }))
-        .children(targets.map((a, i) => btn(`riff-ask-${i}`, askLabel(a), ask(a), true))));
+      .child(h_flex().id("riff-ask-head").px(4).pt(2).gap(6).items_center()
+        .when(compact, (el) => el.cursor_pointer().on_mouse_down("left", (_e, cx) => { this.askOpen = !this.askOpen; cx.notify(); }))
+        .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(p.muted).child(compact ? "Ask an agent here for a riff" : title))
+        .when(compact, (el) => el.child(div().text_size(10).text_color(p.faint).child(open ? "▾" : "▸"))))
+      .when(open, (el) => el
+        .child(div().px(10).py(8).rounded(8).bg(p.ground).text_size(12.5).text_color(p.ink).child(SAMPLE))
+        .child(h_flex().gap(6).justify_end().flex_wrap()
+          .child(btn("riff-copy", this.copied ? "Copied" : "Copy", (cx) => {
+            cx.spawn(async (cx) => {
+              await exec("/bin/sh", ["-c", 'printf %s "$1" | pbcopy', "sh", SAMPLE]).catch(() => null);
+              this.copied = true; cx.notify();
+              await new Promise((r) => cx.timer.after(1500, r));
+              this.copied = false; cx.notify();
+            });
+          }))
+          .children(targets.map((a, i) => btn(`riff-ask-${i}`, askLabel(a), ask(a), true)))));
   }
 
-  // Other agents waiting on you: one row each, click to go there.
-  waitingView(p, list) {
+  // Other agents waiting on you: one row each, click to go there. A riff this panel couldn't load
+  // says why, instead of vanishing.
+  waitingView(p, list, more) {
     return v_flex().flex_none().mt(12)
-      .child(div().px(16).pb(4).text_size(12).font_medium().text_color(p.muted).child(`Waiting on you elsewhere · ${list.length}`))
+      .child(div().px(16).pb(4).text_size(12).font_medium().text_color(p.muted).child(`${more ? "Also waiting" : "Waiting on you elsewhere"} · ${list.length}`))
       .children(list.map((r) => {
         const a = agents().find((x) => x.address === r.terminal);
         return h_flex().id(`wait-${r.stem}`).flex_none().mx(4).px(12).py(6).gap(8).items_center().rounded(10).cursor_pointer()
@@ -506,7 +554,8 @@ export class Riff {
           .child(dot(STATUS.blocked, 7))
           .child(v_flex().flex_1().min_w(0)
             .child(div().truncate().text_size(12.5).child(r.question))
-            .child(div().truncate().text_size(11.5).text_color(p.faint).child(askerLabel(a))));
+            .child(div().truncate().text_size(11.5).text_color(p.faint).child(askerLabel(a)))
+            .when(!!this.broken?.[r.stem], (el) => el.child(div().truncate().text_size(11.5).text_color(STATUS.blocked).child(`Couldn't show it: ${this.broken[r.stem]}`))));
       }));
   }
 

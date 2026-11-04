@@ -86,8 +86,11 @@ EOF
 - `id`: names the riff (default `riff`); asking again with the same id replaces it. Give each question
   in a series its own id.
 
-It waits up to 100 seconds (under the default 2-minute command limit) and prints the answer. For a
-longer wait, give the command a longer timeout and pass `--timeout 570`. `--no-wait` returns at once.
+It waits up to 20 seconds and prints the answer, which catches them when they're already looking.
+**Don't wait longer than that** (no `--timeout 570`, no wait loops): while the command runs, Herdr
+shows your pane as working, when it's the person who has to act, and they can't talk to you. If it
+comes back `open`, end your turn with one line ("Riff open in the rail: title face, 1 of 3"). Their
+answer is typed into your pane as a `Riff · …` message, and that starts your next turn.
 
 ### Controls (DialKit's shapes)
 
@@ -120,9 +123,9 @@ when they aren't obvious (`durationMs`, `gapPt`).
 - `answered`: apply `values` (an empty `changed` means your values were right). Follow the `note`.
 - `skipped`: they passed. Don't ask again; use your judgment and say so.
 - `closed`: the riff went away without an answer (closed with `riff.py close`, or the pane ended).
-- `open` with exit code 3: still waiting. Run `riff.py wait gallery-spacing` to keep waiting, or carry
-  on with other work: when they answer, it's typed into your terminal as
-  `Riff · <question>: … - gap: 12 → 16 … All values: {…}`. Treat that exactly like an answer.
+- `open` with exit code 3: not answered yet. End your turn (or carry on with other work); when they
+  answer, it's typed into your terminal as `Riff · <question>: … - gap: 12 → 16 … All values: {…}`.
+  Treat that exactly like an answer, then open the next riff in the series.
 
 Peek at what they've set so far, without waiting: `riff.py values gallery-spacing`. Close a riff you
 no longer need: `riff.py close gallery-spacing` (or `riff.py close` for all of yours).
