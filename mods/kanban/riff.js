@@ -51,7 +51,23 @@ function inferRange(v) {
 const decimals = (step) => (String(step).split(".")[1] ?? "").length;
 const snap = (v, l) => Number(Math.min(l.max, Math.max(l.min, Math.round(v / l.step) * l.step)).toFixed(decimals(l.step)));
 
-const slider = (path, label, [def, min, max, step]) => ({ kind: "slider", path, label, def, min, max, step: step ?? inferStep(min, max) });
+// Agents write these by hand: a range given backwards is swapped, an empty one widened, a missing or
+// bad step inferred, and one that isn't numbers shows as unsupported instead of reaching Herdr.
+function slider(path, label, [def, min, max, step]) {
+  let [d, lo, hi] = [def, min, max].map(Number);
+  if (![d, lo, hi].every(Number.isFinite)) return { kind: "unsupported", path, label, why: "its range isn't numbers" };
+  if (lo > hi) [lo, hi] = [hi, lo];
+  if (lo === hi) hi = lo + 1;
+  const st = Number(step);
+  return { kind: "slider", path, label, def: d, min: lo, max: hi, step: Number.isFinite(st) && st > 0 ? st : inferStep(lo, hi) };
+}
+
+// Herdr's SliderState applies `min` before `max` (default 100) and aborts the whole app when min > max,
+// so a 400..700 range crashed it. The native slider only ever sees whole steps from 0: 0..n.
+const MAX_STEPS = 10000;
+const stepsOf = (l) => Math.max(1, Math.min(MAX_STEPS, Math.round((l.max - l.min) / l.step)));
+const toIndex = (v, l) => Math.max(0, Math.min(stepsOf(l), Math.round(((Math.min(l.max, Math.max(l.min, v)) - l.min) / (l.max - l.min)) * stepsOf(l))));
+const fromIndex = (i, l) => (i >= stepsOf(l) ? l.max : snap(l.min + (i / stepsOf(l)) * (l.max - l.min), l));
 
 // A config object -> nodes: leaves (slider, toggle, text, color, select, numbers, action),
 // folders, and groups (spring, easing, pad: a folder whose value is one object).
@@ -161,10 +177,10 @@ function makeStates(panel, self) {
   for (const l of panel.leaves) {
     const v = panel.values[l.path];
     if (l.kind === "slider") {
-      const s = SliderState.new({ min: l.min, max: l.max, step: l.step, value: Math.min(l.max, Math.max(l.min, v)) });
+      const s = SliderState.new({ min: 0, max: stepsOf(l), step: 1, value: toIndex(v, l) });
       const field = InputState.new({ value: String(v) });
       s.on("change", (x, cx) => {
-        panel.values[l.path] = snap(x, l);
+        panel.values[l.path] = fromIndex(x, l);
         if (panel.focus !== l.path) field.set_value(String(panel.values[l.path]));
         self.flush(panel, cx);
         cx.notify();
@@ -175,7 +191,7 @@ function makeStates(panel, self) {
         if (Number.isFinite(n)) {
           // Typed values may go past the slider's range: you asked for it.
           panel.values[l.path] = Number(n.toFixed(Math.max(decimals(l.step), decimals(n))));
-          s.set_value(Math.min(l.max, Math.max(l.min, n)));
+          s.set_value(toIndex(n, l));
           self.flush(panel, cx);
         }
         field.set_value(String(panel.values[l.path]));
@@ -215,6 +231,12 @@ function releaseStates(panel, keepNote) {
   if (!keepNote) panel.note?.release();
 }
 
+// Native states (sliders, fields) need a live host call with a window: `init` or an event handler.
+// The scan is a task, and neither a task after an await, a timer callback nor
+// the init of a nested view the task creates is one: making them there throws "[uninitialized]".
+// So the scan only reads riffs; their controls are made by the panel's pointer handlers, the moment
+// you move onto the Riff tab, and until then a riff shows its values as text.
+
 // Values as the app reads them: nested like `controls`, groups as one object ({ type: "spring", ... }).
 function nested(panel) {
   const walk = (nodes) => {
@@ -238,6 +260,7 @@ const changedMap = (panel) => Object.fromEntries(changesOf(panel).map((l) => [l.
 export class Riff {
   constructor() {
     this.panels = new Map(); // stem -> panel
+    this.retired = []; // replaced panels whose native states wait for an event to be released
     this.written = {}; // path -> the text we last wrote there
   }
 
@@ -253,7 +276,7 @@ export class Riff {
     cx.spawn(async (cx) => {
       await exec("mkdir", ["-p", RIFF_DIR()]).catch(() => null);
       for (;;) {
-        await this.scan(cx).catch((e) => { this.scanError = String(e?.message ?? e); });
+        await this.scan(cx).then(() => { this.scanError = null; }, (e) => { this.scanError = String(e?.message ?? e); });
         cx.notify();
         await new Promise((r) => { this.wake = r; cx.timer.after(4000, tick); });
       }
@@ -265,6 +288,26 @@ export class Riff {
         if (changed.some((p) => isSpec(p) || p.endsWith(".json.tmp"))) tick();
       }
     });
+  }
+
+  // From a pointer event (a live host call): make the controls of riffs that arrived since, and
+  // release the ones of riffs that closed or changed.
+  makePending(cx) {
+    for (const [old, keepNote] of this.retired.splice(0)) releaseStates(old, keepNote);
+    let made = false;
+    for (const panel of this.panels.values()) {
+      if (!panel.pending) continue;
+      try {
+        makeStates(panel, this);
+        panel.pending = false;
+        made = true;
+      } catch (e) {
+        panel.error = `Couldn't make its controls: ${e?.message ?? e}`;
+        panel.pending = false;
+        panel.broken = true;
+      }
+    }
+    if (made) cx.notify();
   }
 
   // The bar's list has a riff this panel hasn't loaded (or failed to): scan now, not at the next tick.
@@ -281,7 +324,8 @@ export class Riff {
     for (const stem of [...this.panels.keys()]) {
       if (!stems.includes(stem)) {
         // Closed (answered, or by the agent): forget what we wrote, so a new riff with this id writes afresh.
-        releaseStates(this.panels.get(stem));
+        const gone = this.panels.get(stem);
+        if (!gone.pending) this.retired.push([gone, false]);
         this.panels.delete(stem);
         for (const s of [".json", ".values.json", ".answer.json"]) delete this.written[`${RIFF_DIR()}/${stem}${s}`];
       }
@@ -316,8 +360,11 @@ export class Riff {
       try { saved = JSON.parse((await readTextFile(`${RIFF_DIR()}/${stem}.values.json`)) ?? "null"); } catch {}
     }
     const panel = buildPanel(stem, text, spec, old?.leaves ? old : null, saved);
-    makeStates(panel, this);
-    if (old) releaseStates(old, true);
+    panel.pending = true;
+    if (old) {
+      // The new panel keeps the old one's note field; only its other states go.
+      if (old.pending) panel.note = null; else this.retired.push([old, true]);
+    }
     this.panels.set(stem, panel);
     this.flush(panel, cx);
   }
@@ -371,7 +418,7 @@ export class Riff {
     for (const l of panel.leaves) {
       panel.values[l.path] = l.def;
       const st = panel.states[l.path];
-      if (st?.slider) { st.slider.set_value(Math.min(l.max, Math.max(l.min, l.def))); st.field.set_value(String(l.def)); }
+      if (st?.slider) { st.slider.set_value(toIndex(l.def, l)); st.field.set_value(String(l.def)); }
       else if (st?.field) st.field.set_value(l.kind === "numbers" ? l.def.join(", ") : String(l.def));
     }
     panel.bad = {};
@@ -435,7 +482,7 @@ export class Riff {
 
   close(panel, cx) {
     this.panels.delete(panel.stem);
-    releaseStates(panel);
+    if (!panel.pending) this.retired.push([panel, false]);
     const files = [".json", ".values.json", ".answer.json"].map((s) => `${RIFF_DIR()}/${panel.stem}${s}`);
     for (const f of files) delete this.written[f];
     cx.spawn(async (cx) => { await exec("rm", ["-f", ...files]).catch(() => null); cx.notify(); });
@@ -485,6 +532,9 @@ export class Riff {
       .text_color(p.ink)
       .overflow_y_scrollbar()
       .pb(16)
+      .on_hover((_h, cx) => this.makePending(cx))
+      .on_mouse_move((_e, cx) => { if ([...this.panels.values()].some((x) => x.pending) || this.retired.length) this.makePending(cx); })
+      .on_mouse_down("left", (_e, cx) => this.makePending(cx))
       .children(here.map((panel) => this.riffView(p, panel)))
       .when(full.length > 0, (el) => el
         .child(div().px(16).pt(12).text_size(12).font_medium().text_color(p.muted).child(`Nothing from this tab · waiting on you elsewhere · ${full.length}`))
@@ -583,14 +633,21 @@ export class Riff {
         .child(div().text_size(14).font_medium().child(panel.spec.question ?? panel.stem))
         .when(!!panel.spec.about, (el) => el.child(div().truncate().text_size(11.5).text_color(p.faint).child(panel.spec.about))))
       .when(!!panel.error, (el) => el.child(div().px(16).pt(4).text_size(12).text_color(STATUS.blocked).child(panel.error)))
-      .child(v_flex().mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
+      // No controls yet (made on your first pointer move here): its values as text.
+      .when(panel.pending || panel.broken, (el) => el.child(v_flex().mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
+        .children(panel.leaves.map((l) => h_flex().h(28).pl(10).pr(10).gap(8).items_center().rounded(8).bg(p.ground)
+          .child(div().text_size(12).text_color(p.muted).child(l.label))
+          .child(div().flex_1())
+          .child(div().text_size(12).font_family("Geist Mono").text_color(p.ink).child(fmt(panel.values[l.path])))))
+        .when(!panel.broken, (el) => el.child(div().px(4).pt(2).text_size(11.5).text_color(p.faint).child("Point here to change these")))))
+      .when(!panel.pending && !panel.broken, (el) => el.child(v_flex().mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
         .children(this.nodes(p, panel, panel.nodes))
         .child(div().h(4))
         .child(composer(p, `ans-${panel.stem}`, panel.note, panel.focus === "__note", !panel.answered, !!panel.answered, "Answer", (cx) => this.answer(panel, cx, "answered")))
         .child(h_flex().px(4).pt(2).gap(8).items_center()
           .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(p.faint).child(status))
           .when(changed > 0 && !panel.answered, (el) => el.child(textBtn(p, `rst-${panel.stem}`, "Reset", (_e, cx) => this.reset(panel, cx))))
-          .when(!panel.answered, (el) => el.child(textBtn(p, `skip-${panel.stem}`, "Skip", (_e, cx) => this.answer(panel, cx, "skipped"))))));
+          .when(!panel.answered, (el) => el.child(textBtn(p, `skip-${panel.stem}`, "Skip", (_e, cx) => this.answer(panel, cx, "skipped")))))));
   }
 
   nodes(p, panel, nodes) {
