@@ -322,7 +322,7 @@ export class Riff {
     const stems = ls.stdout.split("\n").filter(isSpec).map(stemOf);
     this.broken = Object.fromEntries(Object.entries(this.broken ?? {}).filter(([s]) => stems.includes(s)));
     for (const stem of [...this.panels.keys()]) {
-      if (!stems.includes(stem)) {
+      if (!stems.includes(stem) && !this.panels.get(stem).answered) {
         // Closed (answered, or by the agent): forget what we wrote, so a new riff with this id writes afresh.
         const gone = this.panels.get(stem);
         if (!gone.pending) this.retired.push([gone, false]);
@@ -456,26 +456,46 @@ export class Riff {
       return;
     }
     panel.answered = status;
+    panel.failed = null;
+    panel.delivery = "Sending…";
     cx.notify();
     const file = (s) => `${RIFF_DIR()}/${panel.stem}${s}`;
+    // A send that didn't go through stays on the card, with why and a way to try again.
+    const fail = (msg, cx) => {
+      panel.answered = null;
+      panel.delivery = null;
+      panel.failed = { msg, status, action };
+      cx.notify();
+    };
     const ans = { status, question: q, action: action?.path ?? null, values: nested(panel), changed: changedMap(panel), note };
     cx.spawn(async (cx) => {
       const ok = await this.put(file(".answer.json"), JSON.stringify(ans, null, 2) + "\n");
-      if (!ok) { panel.answered = null; cx.notify(); return; }
-      await new Promise((r) => cx.timer.after(3000, r));
-      if (!(await readTextFile(file(".answer.json")).catch(() => null))) return; // riff.py took it
-      // Skipping with nothing to say needs no message.
-      if (status === "answered" || note) {
+      if (!ok) return fail(`Couldn't write the answer to ${tilde(file(".answer.json"))}.`, cx);
+      // The waiting riff.py takes the file within a moment; check every half second, up to 3.
+      let taken = false;
+      for (let i = 0; i < 6 && !taken; i++) {
+        await new Promise((r) => cx.timer.after(500, r));
+        taken = !(await readTextFile(file(".answer.json")).catch(() => null));
+      }
+      if (taken) {
+        panel.delivery = "Sent to the agent";
+        cx.notify();
+      } else if (status === "answered" || note) {
+        // Nobody picked it up: the agent stopped waiting, so type it into its terminal.
         const r = await exec("hc", ["send", panel.spec.terminal, this.message(panel, status, note, action)]).catch((e) => ({ code: 1, stderr: String(e) }));
         if (r.code !== 0) {
-          notify({ title: "Couldn't reach the agent", body: (r.stderr || r.stdout || "").trim().slice(0, 200) || "Is it waiting on you?", level: "warning" });
           await exec("rm", ["-f", file(".answer.json")]).catch(() => null);
           delete this.written[file(".answer.json")];
-          panel.answered = null;
-          cx.notify();
-          return;
+          return fail(`Couldn't reach the agent: ${(r.stderr || r.stdout || "").trim().slice(0, 160) || "is it still running?"}`, cx);
         }
+        panel.delivery = "Typed into the agent's terminal";
+        cx.notify();
+      } else {
+        // Skipping with nothing to say needs no message.
+        panel.delivery = "Skipped";
+        cx.notify();
       }
+      await new Promise((r) => cx.timer.after(1200, r));
       this.close(panel, cx);
     });
   }
@@ -616,7 +636,7 @@ export class Riff {
     const changed = changesOf(panel).length;
     const out = this.outputPath(panel);
     const who = panel.stem === "demo" ? "Product page: new image gallery" : askerLabel(agent);
-    const status = panel.answered ? (panel.answered === "skipped" ? "Skipped" : "Sent")
+    const status = panel.answered ? (panel.delivery ?? "Sending…")
       : changed ? plural(changed, "change")
       : out ? `Live → ${tilde(out)}`
       : null;
@@ -643,11 +663,15 @@ export class Riff {
       .when(!panel.pending && !panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
         .children(this.nodes(p, panel, panel.nodes))
         .child(div().h(4))
-        .child(composer(p, `ans-${panel.stem}`, panel.note, panel.focus === "__note", !panel.answered, !!panel.answered, "Answer", (cx) => this.answer(panel, cx, "answered")))
-        .child(h_flex().px(4).pt(2).gap(8).items_center()
+        .child(noteField(p, panel.note, panel.focus === "__note"))
+        .when(!!panel.failed, (el) => el.child(v_flex().min_w(0).gap(6).p(8).rounded(8).bg(p.ground)
+          .child(div().w_full().min_w(0).text_size(11.5).text_color(STATUS.blocked).child(panel.failed.msg))
+          .child(h_flex().justify_end().child(textBtn(p, `retry-${panel.stem}`, "Try again", (_e, cx) => this.answer(panel, cx, panel.failed.status, panel.failed.action))))))
+        .child(h_flex().px(4).pt(2).gap(8).items_center().min_w(0)
           .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(p.faint).child(status ?? ""))
           .when(changed > 0 && !panel.answered, (el) => el.child(textBtn(p, `rst-${panel.stem}`, "Reset", (_e, cx) => this.reset(panel, cx))))
-          .when(!panel.answered, (el) => el.child(textBtn(p, `skip-${panel.stem}`, "Skip", (_e, cx) => this.answer(panel, cx, "skipped")))))));
+          .when(!panel.answered, (el) => el.child(textBtn(p, `skip-${panel.stem}`, "Skip", (_e, cx) => this.answer(panel, cx, "skipped"))))
+          .child(sendBtn(p, `ans-${panel.stem}`, !panel.answered, !!panel.answered, "Answer", (cx) => this.answer(panel, cx, "answered"))))));
   }
 
   nodes(p, panel, nodes, depth = 0) {
@@ -772,20 +796,23 @@ export class Riff {
 // A theme color with an alpha, when it's plain #rrggbb.
 const tint = (color, alpha) => (/^#[0-9a-f]{6}$/i.test(color) ? color + alpha : color);
 
-// One field with its button inside: radius 12 = 8 (button) + 4 (inset).
-function composer(p, id, state, focus, can, busy, label, onSend) {
-  return h_flex().id(`cmp-${id}`).flex_none().p(4).gap(4).items_center().rounded(12).border_1()
-    .border_color(focus ? p.accent : p.line).bg(p.ground)
-    .child(div().flex_1().min_w(0).h(28).pl(6).flex().items_center().cursor_text()
-      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .child(Input.new(state).w_full().text_size(12).text_color(p.ink)))
-    .child(h_flex().id(`btn-${id}`).flex_none().h(28).pl(10).pr(12).gap(6).items_center().rounded(8).text_size(12.5).font_medium()
-      .bg(can ? p.ink : p.raised)
-      .text_color(can ? p.ground : p.faint)
-      .when(can, (el) => el.cursor_pointer().hover((s) => s.opacity(0.9)).active((s) => s.opacity(0.75)))
-      .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); if (can) onSend(cx); })
-      .child(svg(ICON(busy ? "spinner" : "message")).size(13))
-      .child(label));
+// The note: a field of its own, full width.
+function noteField(p, state, focus) {
+  return h_flex().flex_none().min_w(0).px(6).h(36).items_center().rounded(12).border_1()
+    .border_color(focus ? p.accent : p.line).bg(p.ground).cursor_text()
+    .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+    .child(div().flex_1().min_w(0).child(Input.new(state).w_full().text_size(12).text_color(p.ink)));
+}
+
+// The send button: its own row, so a narrow panel never squeezes the note.
+function sendBtn(p, id, can, busy, label, onSend) {
+  return h_flex().id(`btn-${id}`).flex_none().h(28).pl(10).pr(12).gap(6).items_center().rounded(8).text_size(12.5).font_medium()
+    .bg(can ? p.ink : p.raised)
+    .text_color(can ? p.ground : p.faint)
+    .when(can, (el) => el.cursor_pointer().hover((s) => s.opacity(0.9)).active((s) => s.opacity(0.75)))
+    .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); if (can) onSend(cx); })
+    .child(svg(ICON(busy ? "spinner" : "message")).size(13))
+    .child(label);
 }
 
 function textBtn(p, id, label, onPress) {
