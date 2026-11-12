@@ -571,16 +571,18 @@ export class Riff {
     // On an agent's pane: "Ask this agent". On another pane: a button per agent in the tab, by name.
     const onAgent = targets.length === 1 && targets[0].address === (focused()?.terminal ?? focused()?.agent);
     const askLabel = (a) => (onAgent ? "Ask this agent" : `Ask ${paneLabel(a) ?? askerLabel(a)}`);
-    const title = targets.length > 1 ? "No questions from the agents in this tab" : "No questions from this agent";
-    return v_flex().flex_none().mx(12).mt(12).p(8).gap(8).rounded(16).bg(p.card)
+    const title = targets.length > 1 ? "No questions in this tab" : "No questions from this agent";
+    return v_flex().flex_none().min_w(0).mx(12).mt(12).p(8).gap(8).rounded(16).bg(p.card)
       .child(h_flex().id("riff-ask-head").px(4).pt(2).gap(6).items_center()
         .when(compact, (el) => el.cursor_pointer().on_mouse_down("left", (_e, cx) => { this.askOpen = !this.askOpen; cx.notify(); }))
-        .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(p.muted).child(compact ? "Ask an agent here for a riff" : title))
-        .when(compact, (el) => el.child(div().text_size(10).text_color(p.faint).child(open ? "▾" : "▸"))))
+        .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(p.muted).child(compact ? "Ask an agent for a riff" : title))
+        .when(compact, (el) => el.child(svg(ICON(open ? "chevron-down" : "chevron-right")).size(12).flex_none().text_color(p.faint))))
+      .when(open && !!this.promptOpen, (el) => el
+        .child(div().w_full().min_w(0).px(10).py(8).rounded(8).bg(p.ground).text_size(11.5).text_color(p.muted).child(SAMPLE)))
       .when(open, (el) => el
-        .child(div().px(10).py(8).rounded(8).bg(p.ground).text_size(12.5).text_color(p.ink).child(SAMPLE))
         .child(h_flex().gap(6).justify_end().flex_wrap()
-          .child(btn("riff-copy", this.copied ? "Copied" : "Copy", (cx) => {
+          .child(textBtn(p, "riff-prompt", this.promptOpen ? "Hide prompt" : "Show prompt", (_e, cx) => { this.promptOpen = !this.promptOpen; cx.notify(); }))
+          .child(btn("riff-copy", this.copied ? "Copied" : "Copy prompt", (cx) => {
             cx.spawn(async (cx) => {
               await exec("/bin/sh", ["-c", 'printf %s "$1" | pbcopy', "sh", SAMPLE]).catch(() => null);
               this.copied = true; cx.notify();
@@ -603,9 +605,9 @@ export class Riff {
           .on_mouse_down("left", () => goToRiff(r.terminal))
           .child(dot(STATUS.blocked, 7))
           .child(v_flex().flex_1().min_w(0)
-            .child(div().truncate().text_size(12.5).child(r.question))
+            .child(div().min_w(0).truncate().text_size(12.5).child(r.question))
             .child(div().truncate().text_size(11.5).text_color(p.faint).child(askerLabel(a)))
-            .when(!!this.broken?.[r.stem], (el) => el.child(div().truncate().text_size(11.5).text_color(STATUS.blocked).child(`Couldn't show it: ${this.broken[r.stem]}`))));
+            .when(!!this.broken?.[r.stem], (el) => el.child(div().w_full().min_w(0).text_size(11.5).text_color(STATUS.blocked).child(`Couldn't show it: ${this.broken[r.stem]}`))));
       }));
   }
 
@@ -615,56 +617,59 @@ export class Riff {
     const out = this.outputPath(panel);
     const who = panel.stem === "demo" ? "Product page: new image gallery" : askerLabel(agent);
     const status = panel.answered ? (panel.answered === "skipped" ? "Skipped" : "Sent")
-      : changed ? `${plural(changed, "change")} · Enter answers`
+      : changed ? plural(changed, "change")
       : out ? `Live → ${tilde(out)}`
-      : "Answering as is keeps the agent's values";
+      : null;
     // Card 16 = 8 padding + 8 on every bar inside it.
     return v_flex()
       .flex_none()
       .mt(12)
-      .child(v_flex().px(16).gap(2)
+      .child(v_flex().px(16).gap(2).min_w(0)
         // A riff from another pane in this tab: clicking who asks takes you to that pane.
-        .child(h_flex().id(`who-${panel.stem}`).gap(6).items_center()
+        .child(h_flex().id(`who-${panel.stem}`).gap(6).items_center().min_w(0)
           .when(!!agent && agent.address !== focused()?.terminal, (el) => el.cursor_pointer()
             .hover((s) => s.opacity(0.8))
             .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); goToRiff(agent.address); }))
           .child(dot(STATUS.blocked, 6))
-          .child(div().truncate().text_size(11.5).text_color(p.faint).child(`${who} asks`)))
-        .child(div().text_size(14).font_medium().child(panel.spec.question ?? panel.stem))
-        .when(!!panel.spec.about, (el) => el.child(div().truncate().text_size(11.5).text_color(p.faint).child(panel.spec.about))))
-      .when(!!panel.error, (el) => el.child(div().px(16).pt(4).text_size(12).text_color(STATUS.blocked).child(panel.error)))
+          .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(p.faint).child(`${who} asks`)))
+        .child(div().w_full().min_w(0).text_size(14).font_medium().child(panel.spec.question ?? panel.stem))
+        .when(!!panel.spec.about, (el) => el.child(div().w_full().min_w(0).text_size(11.5).text_color(p.faint).child(panel.spec.about))))
+      .when(!!panel.error, (el) => el.child(div().w_full().min_w(0).px(16).pt(4).text_size(12).text_color(STATUS.blocked).child(panel.error)))
       // No controls yet (made on your first pointer move here): its values as text.
-      .when(panel.pending || panel.broken, (el) => el.child(v_flex().mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
+      .when(panel.pending || panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
         .children(panel.leaves.map((l) => h_flex().h(28).pl(10).pr(10).gap(8).items_center().rounded(8).bg(p.ground)
-          .child(div().text_size(12).text_color(p.muted).child(l.label))
-          .child(div().flex_1())
-          .child(div().text_size(12).font_family("Geist Mono").text_color(p.ink).child(fmt(panel.values[l.path])))))
-        .when(!panel.broken, (el) => el.child(div().px(4).pt(2).text_size(11.5).text_color(p.faint).child("Point here to change these")))))
-      .when(!panel.pending && !panel.broken, (el) => el.child(v_flex().mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
+          .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(p.muted).child(l.label))
+          .child(div().flex_shrink(1).min_w(0).max_w(140).truncate().text_size(12).font_family("Geist Mono").text_color(p.ink).child(fmt(panel.values[l.path]))))))
+      .when(!panel.pending && !panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
         .children(this.nodes(p, panel, panel.nodes))
         .child(div().h(4))
         .child(composer(p, `ans-${panel.stem}`, panel.note, panel.focus === "__note", !panel.answered, !!panel.answered, "Answer", (cx) => this.answer(panel, cx, "answered")))
         .child(h_flex().px(4).pt(2).gap(8).items_center()
-          .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(p.faint).child(status))
+          .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(p.faint).child(status ?? ""))
           .when(changed > 0 && !panel.answered, (el) => el.child(textBtn(p, `rst-${panel.stem}`, "Reset", (_e, cx) => this.reset(panel, cx))))
           .when(!panel.answered, (el) => el.child(textBtn(p, `skip-${panel.stem}`, "Skip", (_e, cx) => this.answer(panel, cx, "skipped")))))));
   }
 
-  nodes(p, panel, nodes) {
+  nodes(p, panel, nodes, depth = 0) {
     return nodes.map((n) => {
-      if (n.kind === "folder" || n.kind === "group") {
-        const key = `f-${panel.stem}-${n.path}`;
-        const open = this.isOpen(key, !n.collapsed);
-        return v_flex().gap(4)
-          .child(h_flex().id(key).h(28).px(4).gap(6).items_center().rounded(8).cursor_pointer()
-            .hover((s) => s.bg(p.hover))
-            .on_mouse_down("left", (_e, cx) => { this.toggle(key, !n.collapsed); cx.notify(); })
-            .child(div().w(10).text_size(10).text_color(p.faint).child(open ? "▾" : "▸"))
-            .child(div().text_size(12).font_medium().text_color(p.muted).child(n.label))
-            .when(n.kind === "group" && !!n.fixed.type, (el) => el.child(div().text_size(11.5).text_color(p.faint).child(n.fixed.type))))
-          .when(open, (el) => el.child(v_flex().pl(12).gap(4).children(this.nodes(p, panel, n.children))));
-      }
-      return this.leaf(p, panel, n);
+      if (n.kind !== "folder" && n.kind !== "group") return this.leaf(p, panel, n);
+      // A section is a card of its own: a header (chevron, name, how many you've changed) that
+      // folds the controls away. Cards nest one tone apart, so a card inside a card still reads.
+      const key = `f-${panel.stem}-${n.path}`;
+      const open = this.isOpen(key, !n.collapsed);
+      const mine = leavesOf(n.children).filter((l) => VALUE_KINDS.has(l.kind));
+      const changed = mine.filter((l) => !same(panel.values[l.path], l.def)).length;
+      return v_flex().min_w(0).p(4).gap(4).rounded(12).bg(depth % 2 === 0 ? p.raised : p.card)
+        .child(h_flex().id(key).h(28).pl(6).pr(8).gap(6).items_center().min_w(0).rounded(8).cursor_pointer()
+          .hover((s) => s.bg(p.hover))
+          .on_mouse_down("left", (_e, cx) => { this.toggle(key, !n.collapsed); cx.notify(); })
+          .child(svg(ICON(open ? "chevron-down" : "chevron-right")).size(12).flex_none().text_color(p.muted))
+          .child(div().flex_1().min_w(0).truncate().text_size(12).font_medium().text_color(p.ink).child(n.label))
+          .when(changed > 0, (el) => el.child(h_flex().flex_none().gap(4).items_center()
+            .child(div().w(5).h(5).rounded_full().bg(p.accent))
+            .child(div().text_size(11).text_color(p.muted).child(String(changed)))))
+          .when(changed === 0 && !open, (el) => el.child(div().flex_none().text_size(11).text_color(p.faint).child(String(mine.length)))))
+        .when(open, (el) => el.child(v_flex().min_w(0).gap(4).children(this.nodes(p, panel, n.children, depth + 1))));
     });
   }
 
@@ -674,10 +679,10 @@ export class Riff {
     const changed = VALUE_KINDS.has(l.kind) && !same(v, l.def);
     const id = (kind) => `${kind}-${panel.stem}-${l.path}`;
     // Every control is one 28px bar, radius 8, the label inside on the left.
-    const bar = (kind) => h_flex().id(id(kind)).h(28).pl(10).pr(4).gap(8).items_center().rounded(8).bg(p.ground);
-    const label = () => h_flex().flex_none().gap(6).items_center()
-      .child(div().text_size(12).text_color(changed ? p.ink : p.muted).child(l.label))
-      .when(changed, (el) => el.child(div().w(5).h(5).rounded_full().bg(p.accent)));
+    const bar = (kind) => h_flex().id(id(kind)).h(28).pl(10).pr(4).gap(8).items_center().rounded(8).bg(p.ground).min_w(0).overflow_hidden();
+    const label = () => h_flex().min_w(0).gap(6).items_center()
+      .child(div().min_w(0).truncate().text_size(12).text_color(changed ? p.ink : p.muted).child(l.label))
+      .when(changed, (el) => el.child(div().w(5).h(5).flex_none().rounded_full().bg(p.accent)));
     // A field shows its edge only while you type in it.
     const field = (state, opts = {}) => div()
       .id(id("fld"))
@@ -718,7 +723,7 @@ export class Riff {
                 .relative().w_full().h_full().rounded(8).bg(p.ground)
                 // The value line is the fill's edge: it paints under the label, so text stays readable.
                 .range_style((fill) => fill.rounded_l(8).border_r_2().border_color(line).bg(changed ? tint(p.accent, "33") : p.selected))
-                .child(h_flex().absolute().top(0).left(10).h_full().items_center().child(label()))
+                .child(h_flex().absolute().top(0).left(10).right(6).h_full().items_center().overflow_hidden().child(label()))
                 // The shell paints the thumb above everything: keep it as an invisible grab handle.
                 .child(SliderThumb.new(s).id(id("thumb")).w(12).h(28).ml(-6))))))
           .child(field(st.field, { w: 52, mono: true }));
@@ -726,23 +731,21 @@ export class Riff {
       case "toggle":
         return bar("tg").pr(6).cursor_pointer().hover((s) => s.bg(p.hover))
           .on_mouse_down("left", (_e, cx) => { panel.values[l.path] = !v; this.flush(panel, cx); cx.notify(); })
-          .child(label())
-          .child(div().flex_1())
-          .child(h_flex().w(28).h(16).p(2).rounded(8).bg(v ? p.accent : p.raised).when(!!v, (el) => el.justify_end())
+          .child(div().flex_1().min_w(0).child(label()))
+          .child(h_flex().w(28).h(16).flex_none().p(2).rounded(8).bg(v ? p.accent : p.raised).when(!!v, (el) => el.justify_end())
             .child(div().w(12).h(12).rounded(6).bg(v ? "#ffffff" : p.muted)));
       case "color": {
         const ok = HEX.test(String(v).trim());
         return bar("col")
-          .child(label())
-          .child(div().flex_1())
+          .child(div().flex_1().min_w(0).child(label()))
           .child(div().w(16).h(16).flex_none().rounded(4).border_1().border_color("#ffffff1a").when(ok, (el) => el.bg(String(v).trim())))
           .child(field(st.field, { w: 92, mono: true }));
       }
       case "text":
       case "numbers":
-        return bar("txt").child(label()).child(field(st.field, { mono: l.kind === "numbers" }));
+        return bar("txt").child(h_flex().flex_shrink(1).min_w(0).max_w(110).child(label())).child(field(st.field, { mono: l.kind === "numbers" }));
       case "select": {
-        const seg = (o) => div().id(id(`opt-${o.value}`)).h(22).px(8).flex().items_center().rounded(6).text_size(12).cursor_pointer()
+        const seg = (o) => div().id(id(`opt-${o.value}`)).h(22).px(8).min_w(0).truncate().flex().items_center().rounded(6).text_size(12).cursor_pointer()
           .when(v === o.value, (el) => el.bg(p.raised))
           .text_color(v === o.value ? p.ink : p.faint)
           .hover((s) => s.text_color(p.ink))
@@ -750,10 +753,10 @@ export class Riff {
           .on_mouse_down("left", (_e, cx) => { panel.values[l.path] = o.value; this.flush(panel, cx); cx.notify(); });
         // Short lists sit on the bar, segmented (22 + 3 + 3 = 28: radius 6 inside 8 at 2px in); long ones wrap below.
         const fits = l.options.length <= 3 && l.options.reduce((n, o) => n + o.label.length + 3, l.label.length) <= 30;
-        if (fits) return bar("sel").pr(3).child(label()).child(div().flex_1()).children(l.options.map((o) => seg(o).child(o.label)));
-        return v_flex().gap(4).p(3).rounded(8).bg(p.ground)
-          .child(h_flex().h(22).pl(7).items_center().child(label()))
-          .child(h_flex().flex_wrap().gap(2).children(l.options.map((o) => seg(o).child(o.label))));
+        if (fits) return bar("sel").pr(3).child(div().flex_1().min_w(0).child(label())).children(l.options.map((o) => seg(o).child(o.label)));
+        return v_flex().gap(4).p(3).rounded(8).bg(p.ground).min_w(0)
+          .child(h_flex().h(22).pl(7).items_center().min_w(0).child(label()))
+          .child(h_flex().flex_wrap().gap(2).min_w(0).children(l.options.map((o) => seg(o).child(o.label))));
       }
       case "action":
         return h_flex().id(id("act")).h(28).px(10).items_center().justify_center().rounded(8).bg(p.raised)
@@ -761,7 +764,7 @@ export class Riff {
           .on_mouse_down("left", (_e, cx) => this.answer(panel, cx, "answered", l))
           .child(l.label);
       default:
-        return div().px(10).text_size(11.5).text_color(p.faint).child(`${l.label}: ${l.why}`);
+        return div().w_full().min_w(0).px(10).text_size(11.5).text_color(p.faint).child(`${l.label}: ${l.why}`);
     }
   }
 }
