@@ -13,7 +13,7 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, SliderState, Slider, SliderTrack, SliderIndicator, SliderThumb } from "gpui-base";
 import { exec, home, readTextFile, writeTextFile, watchFolder, terminals, agents, panes, focused, notify, settings } from "herdr";
-import { ICON, STATUS, KIND, pal, tilde, dot } from "./ui.js";
+import { ICON, STATUS, KIND, pal, tilde, dot, button } from "./ui.js";
 import { demo, DEMO_RIFF } from "./demo.js";
 import { RIFF_DIR, isSpec, stemOf, riffs, askerLabel, paneLabel, goToRiff } from "./riffs.js";
 
@@ -838,31 +838,6 @@ function noteField(p, state, focus) {
 }
 
 // The send button: its own row, so a narrow panel never squeezes the note.
-// One button for the whole panel, in three weights, so every action reads the same way.
-//   primary    the one thing to do here (ink fill)
-//   secondary  an equal-but-quieter choice (raised fill, hairline edge)
-//   ghost      a small aside (no fill until you point at it)
-// Every variant has a hover, a pressed and (where it can happen) a disabled state, and a hit
-// area of at least 28px; a button that is busy keeps its label and swaps its icon for a spinner.
-function button(p, id, label, onPress, opts = {}) {
-  const { variant = "secondary", icon, busy = false, disabled = false } = opts;
-  const ghost = variant === "ghost";
-  const live = !disabled && !busy;
-  const fill = variant === "primary" ? p.ink : variant === "secondary" ? p.raised : "#00000000";
-  const ink = disabled ? p.faint : variant === "primary" ? p.ground : ghost ? p.muted : p.ink;
-  return h_flex().id(id).flex_none().h(ghost ? 28 : 32).px(ghost ? 10 : 12).gap(6).items_center().justify_center()
-    .rounded(ghost ? 8 : 10).text_size(ghost ? 12 : 12.5).font_medium().whitespace_nowrap()
-    .bg(disabled ? p.raised : fill).text_color(ink)
-    .when(variant === "secondary", (el) => el.border_1().border_color(p.line))
-    .when(live, (el) => el.cursor_pointer()
-      .hover((s) => (variant === "primary" ? s.opacity(0.88) : s.bg(ghost ? p.hover : p.selected).text_color(p.ink)))
-      .active((s) => s.opacity(0.7)))
-    .when(!live, (el) => el.cursor_default())
-    .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); if (live) onPress(e, cx); })
-    .when(busy || !!icon, (el) => el.child(svg(ICON(busy ? "spinner" : icon)).size(13).flex_none()))
-    .child(label);
-}
-
 // The panel's primary action (a riff's Answer).
 function sendBtn(p, id, can, busy, label, onSend) {
   return button(p, `btn-${id}`, label, (_e, cx) => onSend(cx), { variant: "primary", icon: "message", busy, disabled: !can && !busy });

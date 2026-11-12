@@ -8,15 +8,16 @@
 // tasks-sync.py merges every source's views and tabs into one config, and fetches GitHub and Linear.
 // Every row has the same shape, so grouping, folding and Today work the same for all of them.
 
-import { div, svg } from "gpui-kit";
+import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { exec, run, notify, home, appHome, readTextFile, writeTextFile, watchFolder, shared, setShared, openOverlay, spaces, knownAgents } from "herdr";
-import { ICON, STATUS, pal, ago, dot, iconBtn, editConfig, USER_CONFIG } from "./ui.js";
+import { ICON, STATUS, pal, ago, dot, iconBtn, button, editConfig, USER_CONFIG } from "./ui.js";
 import { demo, demoJira, DEMO_JIRA_CONFIG } from "./demo.js";
 import { CAT, pill } from "./pill.js";
 
 const CACHE = () => `${home()}/.cache/herdr-kanban`;
 const LOCAL = () => `${USER_CONFIG()}/tasks.local.json`;
+const AGENT_FILE = () => `${USER_CONFIG()}/task-agent.json`;
 const LOCAL_CAT = { "To do": "new", Doing: "indeterminate", Done: "done" };
 const SOURCE = { jira: "Jira", github: "GitHub", linear: "Linear", local: "Mine" };
 
@@ -50,10 +51,11 @@ export class Jira {
   }
 
   start(cx) {
-    this.adding = InputState.new({ placeholder: "Add a task, then Enter" });
-    this.adding.on("submit", (_e, cx) => this.addLocal(cx));
+    this.adding = InputState.new({ placeholder: "New task, then Enter" });
+    this.adding.on("submit", (_e, cx) => { this.addLocal(cx); this.addOpen = false; cx.notify(); });
     // Your agents, for "start an agent on this": the New menu's list if it has one.
     cx.spawn(async () => { try { this.agents = await knownAgents({ on: spaces().find((s) => s.active)?.machine ?? null }); } catch {} });
+    cx.spawn(async (cx) => { await this.loadAgentChoice(); cx.notify(); });
     // Settings and your own tasks live in ~/.config/herdr-board: reload when they change.
     cx.spawn(async (cx) => {
       await exec("mkdir", ["-p", USER_CONFIG()]).catch(() => null);
@@ -204,9 +206,14 @@ export class Jira {
     return this.cfg.tabs ?? [{ id: "today", label: "Today" }, ...this.cfg.views.map((v) => ({ id: v.id, label: v.label, sections: [{ view: v.id }] }))];
   }
 
+  // The tab bar: your own tasks have no tab of their own (the + adds one; they show in Today).
+  shownTabs() {
+    return this.tabs().filter((t) => !t.local);
+  }
+
   view() {
     const v = shared("kanban.jira.view");
-    const tabs = this.tabs();
+    const tabs = this.shownTabs();
     if (tabs.some((t) => t.id === v)) return v;
     // First open, or the remembered tab is gone: "default_tab" in jira.json, else Today.
     return tabs.some((t) => t.id === this.cfg.default_tab) ? this.cfg.default_tab : "today";
@@ -257,9 +264,48 @@ export class Jira {
     }, cx));
   }
 
+  // The agents you can start a task with, and which one is the default (kept in task-agent.json).
+  agentList() {
+    return (this.agents ?? shared("kanban.agents")?.[""] ?? []).filter((a) => a.installed);
+  }
+
+  defaultAgent() {
+    const list = this.agentList();
+    return list.find((a) => a.key === this.agentKey) ?? list[0] ?? null;
+  }
+
+  async loadAgentChoice() {
+    try { this.agentKey = JSON.parse((await readTextFile(AGENT_FILE())) ?? "null")?.key ?? null; } catch { this.agentKey = null; }
+  }
+
+  setDefaultAgent(a, cx) {
+    this.agentKey = a.key;
+    writeTextFile(AGENT_FILE(), JSON.stringify({ key: a.key }, null, 2) + "\n").catch(() => notify({ title: "Couldn't save the default agent", level: "warning" }));
+    cx.notify();
+  }
+
+  // The play button and its chevron: play starts the default agent; the chevron picks another for this one task.
+  startBtn(p, i, title) {
+    const a = this.defaultAgent();
+    return h_flex().flex_none().gap(1).items_center()
+      .child(div().id(`jstart-${i.key}`).tooltip(a ? `Start ${a.name} on this, in a new tab` : "Start an agent on this, in a new tab")
+        .child(iconBtn(`jcard-${i.key}`, "play", () => this.startAgent({ ...i, summary: title ?? i.summary }), p)))
+      .when(this.agentList().length > 1, (el) => el.child(div().id(`jpick-${i.key}`).tooltip("Start with a different agent")
+        .child(iconBtn(`jpickb-${i.key}`, this.pick === i.key ? "chevron-down" : "chevron-right", (_e, cx) => { this.pick = this.pick === i.key ? null : i.key; cx.notify(); }, p))));
+  }
+
+  // Under a row when its chevron is open: one button per agent, the default marked.
+  pickerRow(p, i, title) {
+    const def = this.defaultAgent();
+    return h_flex().id(`jpr-${i.key}`).flex_none().flex_wrap().gap(6).px(8).pb(6).items_center()
+      .child(div().text_size(11.5).text_color(p.faint).child("Start with"))
+      .children(this.agentList().map((a) => button(p, `jpa-${i.key}-${a.key}`, a.name, (_e, cx) => { this.pick = null; this.startAgent({ ...i, summary: title ?? i.summary }, a); cx.notify(); },
+        { variant: a.key === def?.key ? "primary" : "secondary" })));
+  }
+
   // Start an agent on a row: a new tab named after it, the task as its first message.
-  startAgent(i) {
-    const first = (this.agents ?? shared("kanban.agents")?.[""] ?? []).find((a) => a.installed);
+  startAgent(i, agent) {
+    const first = agent ?? this.defaultAgent();
     const url = issueUrl(i, this.data?.site ?? this.cfg.site);
     const name = `${i.source === "local" ? "" : `${i.key} `}${(i.summary ?? "").slice(0, 48)}`;
     if (!first) return run("tab.new", { name });
@@ -279,7 +325,7 @@ export class Jira {
     const p = pal();
     const cur = this.view();
     const count = (this.digest?.mentions?.length ?? 0) + (this.digest?.comments?.length ?? 0);
-    const tabs = this.tabs().map((t) => ({ ...t, badge: t.id === "today" ? count : 0, n: t.id === "today" || t.id === "recent" || !this.data ? null : this.openCount(t) }));
+    const tabs = this.shownTabs().map((t) => ({ ...t, badge: t.id === "today" ? count : 0, n: t.id === "today" || t.id === "recent" || !this.data ? null : this.openCount(t) }));
     const busy = this.running();
     const err = this.cfg.error ?? (Object.values(this.cfg.errors ?? {})[0]) ?? (this.has("jira") && this.status?.state === "error" ? this.status.error : null);
     // Only your own tasks so far: say how to bring in the rest.
@@ -314,7 +360,18 @@ export class Jira {
           .child(div().flex_1().min_w(0).truncate().child(
             busy ? (this.jiraRunning() ? "Refreshing Jira through Claude…" : "Refreshing…") : this.data?.at ? `Updated ${ago(Date.now() - this.data.at)}${ago(Date.now() - this.data.at) === "just now" ? "" : " ago"}` : lonely ? "Your own tasks" : "Not loaded yet"))
           .when(!lonely, (el) => el.child(iconBtn("jira-refresh", busy ? "spinner" : "reload", () => this.refresh(cur === "today" ? "digest" : "sync"), p)))
-          .child(div().id("tasks-edit").tooltip("Sources: tasks.json (Jira's tabs: jira.json)").child(iconBtn("jira-edit", "logs", () => editConfig("tasks"), p))))
+          .child(div().id("tasks-agent").tooltip(`Tasks start ${this.defaultAgent()?.name ?? "an agent"}. Click to change it; use the arrow on a row to change it for one task.`).child(
+            iconBtn("task-agent", "terminal", (_e, cx) => { this.agentOpen = !this.agentOpen; cx.notify(); }, p, { color: this.agentOpen ? p.ink : undefined })))
+          .child(div().id("tasks-edit").tooltip("Sources: tasks.json (Jira's tabs: jira.json)").child(iconBtn("jira-edit", "logs", () => editConfig("tasks"), p)))
+          .child(div().id("tasks-add").tooltip("New task").child(iconBtn("jira-add", "plus", (_e, cx) => { this.addOpen = !this.addOpen; if (this.addOpen) try { this.adding.focus?.(); } catch {} cx.notify(); }, p))))
+      // Which agent a task starts with: the default, kept between sessions.
+      .when(!!this.agentOpen, (el) => el.child(h_flex().flex_none().flex_wrap().gap(6).px(12).pb(6).items_center()
+        .child(div().text_size(11.5).text_color(p.faint).child("Start tasks with"))
+        .children(this.agentList().map((a) => button(p, `ta-${a.key}`, a.name, (_e, cx) => this.setDefaultAgent(a, cx), { variant: a.key === this.defaultAgent()?.key ? "primary" : "secondary" })))
+        .when(this.agentList().length === 0, (e) => e.child(div().text_size(11.5).text_color(p.faint).child("No agents found")))))
+      .when(!!this.addOpen, (el) => el.child(h_flex().id("task-add-row").flex_none().mx(8).mb(4).h(36).px(10).items_center().rounded(10).border_1().border_color(p.accent).bg(p.ground).cursor_text()
+        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+        .child(Input.new(this.adding).w_full().text_size(12.5).text_color(p.ink))))
       .when(!!err, (el) => el.child(div().flex_none().px(12).pb(6).text_size(11.5).text_color(STATUS.blocked).child(String(err).slice(0, 220))))
       .when(lonely, (el) => el.child(div().flex_none().mx(12).mb(4).px(10).py(8).rounded(10).bg(p.card).text_size(12).text_color(p.muted)
         .child("Bring in GitHub issues, Linear or Jira: in Claude Code, run /herdr-agent-board:setup")))
@@ -325,11 +382,6 @@ export class Jira {
 
   tabBody(p, tab) {
     const out = [];
-    if (tab?.local) {
-      out.push(h_flex().id("task-add").flex_none().mx(8).mt(8).h(34).px(10).items_center().rounded(10).border_1().border_color(p.line).bg(p.ground).cursor_text()
-        .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-        .child(Input.new(this.adding).w_full().text_size(12.5).text_color(p.ink)));
-    }
     const many = (tab.sections ?? []).length > 1;
     for (const sec of tab.sections ?? []) {
       const v = this.data?.views?.[sec.view];
@@ -504,7 +556,8 @@ export class Jira {
           .child(div().flex_1().min_w(0))
           .when(!!platform, (el) => el.child(tag(platform, p.muted, p.raised)))
           .when(!!flag, (el) => el.child(tag(flag, STATUS.working, "#e2b3401f")))
-          .child(div().id(`jstart-${i.key}`).tooltip("Start an agent on this, in a new tab").child(iconBtn(`jcard-${i.key}`, "play", () => this.startAgent({ ...i, summary: title }), p))))
+          .child(this.startBtn(p, i, title)))
+      .when(this.pick === i.key, (el) => el.child(this.pickerRow(p, i, title)))
       .children((i.children ?? []).map((c) => this.compact(p, { ...c, summary: `Master: ${c.summary.replace(/^Migrate to Master - /, "")}` })));
   }
 
@@ -551,9 +604,10 @@ export class Jira {
               .child(statusBtn(i))
               .child(div().flex_1())
               .when(!!i.updated, (el) => el.child(div().flex_none().text_color(p.faint).child(ago(Date.now() - i.updated))))
-              .child(iconBtn(`jcard-${i.key}`, "play", () => this.startAgent(i), p)))
+              .child(this.startBtn(p, i)))
           .child(div().text_size(13).text_color(p.ink).child(i.summary ?? ""))
           .when(!!i.type, (el) => el.child(div().text_size(11.5).text_color(p.faint).child([i.type, i.parent ? `in ${i.parent}` : null].filter(Boolean).join(" · ")))))
+      .when(this.pick === i.key, (el) => el.child(this.pickerRow(p, i)))
       .children((i.children ?? []).map((c) => this.compact(p, { ...c, summary: `Master: ${c.summary.replace(/^Migrate to Master - /, "")}` }, 16)));
   }
 
@@ -596,7 +650,8 @@ export class Jira {
     // Your open work, by kind: in progress, then recent to-dos. Done never shows here.
     const quiet = new Set((d?.stale ?? []).map((i) => i.key));
     const cutoff = Date.now() - (this.cfg.old_days ?? 60) * 86400000;
-    const todayTabs = this.cfg.today_tabs ?? this.tabs().map((t) => t.id).filter((id) => id !== "today" && id !== "recent");
+    // Your own tasks have no tab of their own any more, so Today always carries them.
+    const todayTabs = [...new Set([...(this.cfg.today_tabs ?? this.tabs().map((t) => t.id).filter((id) => id !== "today" && id !== "recent")), ...this.tabs().filter((t) => t.local).map((t) => t.id)])];
     for (const tabId of todayTabs) {
       const tab = this.tabs().find((t) => t.id === tabId);
       if (!tab) continue;

@@ -15,7 +15,7 @@ import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgen
 import { ICON, STATUS, KIND, tint, pal, ago, dot, progIcon, iconBtn, tilde } from "./ui.js";
 import { devFor } from "./kinds.js";
 import { railTo } from "./railtabs.js";
-import { riffs, goToRiff } from "./riffs.js";
+import { riffs, goToRiff, askerLabel } from "./riffs.js";
 import { gitInfo } from "./git.js";
 import { demo, demoCards } from "./demo.js";
 
@@ -169,8 +169,12 @@ const urgent = (list) => list.filter((c) => c.column === "you" && c.turn === "as
 // No change time means nothing changed since Herdr started: unknown, so not folded.
 const quiet = (c) => c.turn !== "ask" && c.turn !== "new" && !!c.tab.changed_at && Date.now() - c.tab.changed_at > DAY;
 
-export function openPrompts(targets, title) {
-  openOverlay({ mod: "kanban", props: { role: "prompts", targets, title }, kind: "popup", width: 300, height: 340 });
+// `pick`: several agents are shown first, ticked, so you choose who gets it before you pick the prompt.
+export function openPrompts(targets, title, pick = false) {
+  const who = pick
+    ? agents().filter((a) => targets.includes(a.address)).map((a) => ({ address: a.address, label: askerLabel(a), status: a.status }))
+    : [];
+  openOverlay({ mod: "kanban", props: { role: "prompts", targets, title, pick, who }, kind: "popup", width: 340, height: pick ? Math.min(640, 340 + who.length * 34) : 340 });
 }
 
 export function openNew() {
@@ -282,7 +286,7 @@ export function bar() {
           .child(dot(STATUS.blocked, 6))
           .child(`${asks.length} waiting on you`)))
     .child(div().flex_1())
-    .when(live.length > 0, (el) => el.child(tool(p, "prompt-all", "message", `Send a saved prompt to all ${live.length} agents`, () => openPrompts(live, `All agents (${live.length})`))))
+    .when(live.length > 0, (el) => el.child(tool(p, "prompt-all", "broadcast", live.length > 1 ? `Send a saved prompt to your agents: choose which of the ${live.length}` : "Send a saved prompt to your agent", () => openPrompts(live, `All agents (${live.length})`, live.length > 1))))
     .child(tool(p, "toggle-rail", "panel", "Side panel: Dev ⌘⇧E · Tasks ⌘⇧J · Riff ⌘⇧Y", () => run("layout.toggle", { id: "rail" }), railShown))
     .child(tool(p, "to-classic", "classic", "Herdr's classic layout  ⌘⇧K", () => run("layout.switch", { name: "main" })))
     .child(div().w(1).h(18).mx(6).bg(p.line))
