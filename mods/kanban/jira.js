@@ -444,6 +444,7 @@ export class Jira {
       const head = v_flex()
         .id(`jp-${g.key}`)
         .flex_none()
+        .min_w(0)
         .px(8)
         .py(7)
         .gap(5)
@@ -452,21 +453,22 @@ export class Jira {
         .hover((s) => s.bg(p.hover))
         .on_mouse_down("left", (_e, cx) => { this.toggle(key, byDefault); cx.notify(); })
         .child(
-          h_flex().gap(6).items_start()
-            .child(div().w(10).pt(1).text_size(10).text_color(p.faint).child(open ? "▾" : "▸"))
+          h_flex().min_w(0).gap(6).items_start()
+            .child(div().flex_none().w(10).pt(1).text_size(10).text_color(p.faint).child(open ? "▾" : "▸"))
             .child(div().flex_1().min_w(0).text_size(13).font_semibold().text_color(p.ink).child(m ? m[2] : g.summary ?? "No parent story")))
         .child(
-          h_flex().pl(16).gap(6).items_center().text_size(11.5)
+          // Everything here shrinks or drops before it can push past the card's edge.
+          h_flex().w_full().min_w(0).pl(16).gap(6).items_center().text_size(11.5)
             .when(!!g.status, (el) => el.child(pill(g.status, /accepted|closed|done/i.test(g.status) ? "done" : "indeterminate")))
             .child(div().flex_none().text_color(p.faint).child(g.key))
-            .when(!!m, (el) => el.child(div().flex_none().h(18).px(6).flex().items_center().rounded(9).bg(p.raised).text_color(p.muted).text_size(11).child(m[1])))
-            .child(div().flex_1())
-            .child(div().flex_none().text_color(g.open ? p.muted : CAT.done.color).child(`${done}/${g.items.length} accepted`))
+            .when(!!m, (el) => el.child(div().min_w(0).truncate().text_color(p.faint).child(`· ${m[1]}`)))
+            .child(div().flex_1().min_w(0))
+            .child(div().flex_none().text_color(g.open ? p.muted : CAT.done.color).child(`${done}/${g.items.length}`))
             .when(g.key !== "—", (el) => el.child(iconBtn(`jpo-${g.key}`, "external", () => exec("open", [`${site}/browse/${g.key}`]), p))))
         .child(
-          div().ml(16).h(3).rounded_full().bg(p.raised).child(
-            div().h_full().rounded_full().bg(CAT.done.color).w(Math.round((done / g.items.length) * 260))));
-      const rows = open ? g.items.sort((a, b) => (a.category === "done") - (b.category === "done") || (b.updated ?? 0) - (a.updated ?? 0)).map((i) => this.compact(p, i)) : [];
+          h_flex().ml(16).h(3).rounded_full().overflow_hidden().bg(p.raised)
+            .child(div().h_full().bg(CAT.done.color).w(`${Math.round((done / g.items.length) * 100)}%`)));
+      const rows = open ? g.items.sort((a, b) => (a.category === "done") - (b.category === "done") || (b.updated ?? 0) - (a.updated ?? 0)).map((i) => this.compact(p, i, null, true)) : [];
       return card(p, head, rows);
     });
   }
@@ -495,7 +497,7 @@ export class Jira {
       .cursor_pointer()
       .hover((s) => s.bg(p.hover))
       .on_click(() => this.openRow(i))
-      .child(div().text_size(13).text_color(p.ink).child(title))
+      .child(div().min_w(0).text_size(13).text_color(p.ink).child(title))
       .child(
         h_flex().w_full().min_w(0).gap(6).items_center().text_size(11.5)
           .child(statusBtn(i))
@@ -509,7 +511,7 @@ export class Jira {
   }
 
   // One-line row, inside a card.
-  compact(p, i, flag = null) {
+  compact(p, i, flag = null, noKey = false) {
     const site = this.data?.site ?? this.cfg.site;
     return h_flex()
       .id(`jc-${i.key}`)
@@ -524,7 +526,7 @@ export class Jira {
       .hover((s) => s.bg(p.hover))
       .on_click(() => this.openRow(i))
       .child(statusBtn(i))
-      .when(i.source !== "local", (el) => el.child(div().flex_none().text_color(p.faint).child(i.key)))
+      .when(i.source !== "local" && !noKey, (el) => el.child(div().flex_none().text_color(p.faint).child(i.key)))
       .child(div().flex_1().min_w(0).truncate().text_color(i.category === "done" ? p.muted : p.ink).child(i.summary ?? ""))
       .when(!!flag, (el) => el.child(div().flex_none().px(5).rounded(9).bg("#e2b3401f").text_color(STATUS.working).text_size(11).child(flag)));
   }
