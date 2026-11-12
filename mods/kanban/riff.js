@@ -545,6 +545,7 @@ export class Riff {
     // from here (the answer still goes to the agent that asked); "<who> asks" takes you there.
     const full = here.length ? [] : elsewhere.map((r) => this.panels.get(r.stem)).filter(Boolean).sort((a, b) => b.seen - a.seen);
     const rows = elsewhere.filter((r) => !full.some((x) => x.stem === r.stem));
+    const total = here.length + full.length;
     return v_flex()
       .id("riff")
       .size_full()
@@ -555,10 +556,20 @@ export class Riff {
       .on_hover((_h, cx) => this.makePending(cx))
       .on_mouse_move((_e, cx) => { if ([...this.panels.values()].some((x) => x.pending) || this.retired.length) this.makePending(cx); })
       .on_mouse_down("left", (_e, cx) => this.makePending(cx))
-      .children(here.map((panel) => this.riffView(p, panel)))
+      .when(total > 1, (el) => {
+        const all = [...here, ...full];
+        const anyOpen = all.some((x, i) => this.isOpen(`r-${x.stem}`, i === 0));
+        return el.child(h_flex().px(12).pt(8).justify_end()
+          .child(textBtn(p, "riff-fold-all", anyOpen ? "Collapse all" : "Expand all", (_e, cx) => {
+            all.forEach((x) => { this.isOpen(`r-${x.stem}`, true); this.fold[`r-${x.stem}`] = !anyOpen; });
+            try { localStorage.setItem("riff-fold", JSON.stringify(this.fold)); } catch {}
+            cx.notify();
+          })));
+      })
+      .children(here.map((panel, i) => this.riffView(p, panel, i, total)))
       .when(full.length > 0, (el) => el
         .child(div().px(16).pt(12).text_size(12).font_medium().text_color(p.muted).child(`Nothing from this tab · waiting on you elsewhere · ${full.length}`))
-        .children(full.map((panel) => this.riffView(p, panel))))
+        .children(full.map((panel, i) => this.riffView(p, panel, i, total))))
       .when(rows.length > 0, (el) => el.child(this.waitingView(p, rows, full.length > 0 || here.length > 0)))
       .when(!here.length, (el) => el.child(this.emptyView(p, elsewhere.length > 0)))
       .when(!!this.scanError, (el) => el.child(div().px(16).pt(8).text_size(11.5).text_color(STATUS.blocked).child(`Riff couldn't read its folder: ${this.scanError}`)));
@@ -631,7 +642,7 @@ export class Riff {
       }));
   }
 
-  riffView(p, panel) {
+  riffView(p, panel, index = 0, total = 1) {
     const agent = agents().find((a) => a.address === panel.spec.terminal);
     const changed = changesOf(panel).length;
     const out = this.outputPath(panel);
@@ -640,7 +651,11 @@ export class Riff {
       : changed ? plural(changed, "change")
       : out ? `Live → ${tilde(out)}`
       : null;
-    // Card 16 = 8 padding + 8 on every bar inside it.
+    // With several riffs waiting, each folds to one line (the first stays open); one riff never folds.
+    const key = `r-${panel.stem}`;
+    const foldable = total > 1 && !panel.answered;
+    const open = !foldable || this.isOpen(key, index === 0);
+    const question = panel.spec.question ?? panel.stem;
     return v_flex()
       .flex_none()
       .mt(12)
@@ -652,15 +667,21 @@ export class Riff {
             .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); goToRiff(agent.address); }))
           .child(dot(STATUS.blocked, 6))
           .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(p.faint).child(`${who} asks`)))
-        .child(div().w_full().min_w(0).text_size(14).font_medium().child(panel.spec.question ?? panel.stem))
-        .when(!!panel.spec.about, (el) => el.child(div().w_full().min_w(0).text_size(11.5).text_color(p.faint).child(panel.spec.about))))
-      .when(!!panel.error, (el) => el.child(div().w_full().min_w(0).px(16).pt(4).text_size(12).text_color(STATUS.blocked).child(panel.error)))
+        .child(h_flex().id(`q-${panel.stem}`).gap(6).items_start().min_w(0)
+          .when(foldable, (el) => el.cursor_pointer().on_mouse_down("left", (_e, cx) => { this.toggle(key, index === 0); cx.notify(); }))
+          .when(foldable, (el) => el.child(svg(ICON(open ? "chevron-down" : "chevron-right")).size(12).flex_none().mt(4).text_color(p.muted)))
+          .child(div().flex_1().min_w(0).text_size(14).font_medium().when(!open, (el) => el.truncate()).child(question))
+          .when(!open && changed > 0, (el) => el.child(h_flex().flex_none().gap(4).items_center().h(20)
+            .child(div().w(5).h(5).rounded_full().bg(p.accent))
+            .child(div().text_size(11).text_color(p.muted).child(String(changed))))))
+        .when(open && !!panel.spec.about, (el) => el.child(div().w_full().min_w(0).text_size(11.5).text_color(p.faint).child(panel.spec.about))))
+      .when(open && !!panel.error, (el) => el.child(div().w_full().min_w(0).px(16).pt(4).text_size(12).text_color(STATUS.blocked).child(panel.error)))
       // No controls yet (made on your first pointer move here): its values as text.
-      .when(panel.pending || panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(10).gap(6).rounded(16).bg(p.card)
+      .when(open && (panel.pending || panel.broken), (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(10).gap(6).rounded(16).bg(p.card)
         .children(panel.leaves.map((l) => h_flex().h(32).pl(12).pr(12).gap(8).items_center().rounded(10).bg(p.ground)
           .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(p.muted).child(l.label))
           .child(div().flex_shrink(1).min_w(0).max_w(140).truncate().text_size(12).font_family("Geist Mono").text_color(p.ink).child(fmt(panel.values[l.path])))))))
-      .when(!panel.pending && !panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(10).gap(6).rounded(16).bg(p.card)
+      .when(open && !panel.pending && !panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(10).gap(6).rounded(16).bg(p.card)
         .children(this.nodes(p, panel, panel.nodes))
         .child(div().h(2))
         .child(noteField(p, panel.note, panel.focus === "__note"))
