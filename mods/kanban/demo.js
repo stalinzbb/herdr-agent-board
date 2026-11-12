@@ -19,6 +19,36 @@ const SPACES = {
 };
 
 let base = null;
+
+// The projects sidebar's sessions in demo mode: the same made-up Acme work as the board.
+export function demoSessions() {
+  const now = Date.now();
+  base = base ?? now;
+  const claude = program("claude");
+  const none = { servers: [], others: [], sims: [], android: [] };
+  const mk = (sp, i, title, status, o = {}) => {
+    const space = SPACES[sp];
+    const top = o.worktree ?? space.folder;
+    const id = `demo-${sp}-${i}`;
+    const pane = { pane: `${id}-p`, terminal: id, status, program: claude, cwd: top, branch: o.branch, title, focused: true };
+    return {
+      space, tab: { id, name: title, named: true, status, changed_at: now - (o.ago ?? 0), working_since: status === "working" ? base - (o.working ?? 5 * M) : null },
+      lead: pane, panes: [pane], turn: o.turn, riff: o.riff ? { question: o.riff, terminal: id, demo: true } : null,
+      branch: o.branch, title, repo: space.repo, top, linked: !!o.worktree,
+      dev: { ...none, ...(o.dev ?? {}) }, subs: o.subs ?? 0, task: o.task ?? null, current: !!o.current, quiet: false,
+    };
+  };
+  const web = { servers: [{ id: "w", name: "Web", port: 3000 }] };
+  return [
+    mk("web", 0, "Checkout: save card for later", "blocked", { turn: "ask", branch: "feat/saved-cards", ago: 2 * M, riff: "How much space between saved cards?", dev: web }),
+    mk("web", 1, "Product page: new image gallery", "working", { turn: "working", branch: "feat/gallery", working: 14 * M, subs: 2, current: true, task: { key: "DES-412", summary: "Gallery: zoom and swipe interactions", source: "jira" }, dev: web }),
+    mk("web", 2, "Search results empty state", "done", { turn: "new", branch: "feat/search-empty", worktree: "~/code/acme-store-wt", ago: 25 * M }),
+    mk("app", 0, "Fix Android back gesture on cart sheet", "blocked", { turn: "ask", branch: "fix/cart-back", ago: 9 * M }),
+    mk("app", 1, "Onboarding: three-step welcome", "working", { turn: "working", branch: "feat/welcome", working: 37 * M, dev: { ...none, servers: [{ id: "m", name: "Metro", port: 8081 }], sims: [{ name: "iPhone 17 Pro" }] } }),
+    mk("ds", 0, "Tokens: dark theme surfaces", "idle", { turn: "ready", branch: "tokens-dark", ago: 2 * H }),
+  ];
+}
+
 export function demoCards() {
   const now = Date.now();
   base = base ?? now;
