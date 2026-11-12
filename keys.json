@@ -1,6 +1,6 @@
 {
   "layout:kanban": {
-    "cmd-b": "layout.toggle:board",
+    "cmd-b": "kanban.mode",
     "cmd-shift-k": "layout.switch:main",
     "cmd-shift-e": "kanban.dev",
     "cmd-shift-j": "kanban.jira",

@@ -9,7 +9,7 @@
 
 import { View } from "gpui-kit";
 import { props, nextCommand, openOverlay, shared, setShared, pickFolder, run, spaces, panes } from "herdr";
-import { bar, board } from "./board.js";
+import { bar, board, toggleMode } from "./board.js";
 import { Rail } from "./rail.js";
 import { Jira } from "./jira.js";
 import { Riff } from "./riff.js";
@@ -20,9 +20,11 @@ import { watchRiffs, goToRiff } from "./riffs.js";
 import { Prompts } from "./prompts.js";
 import { JStatus } from "./jstatus.js";
 import { UsageWidget, UsageStats } from "./usage.js";
+import { Tree } from "./tree.js";
 import { railtabs, railTo, railShows } from "./railtabs.js";
 
-const PARTS = { rail: Rail, jira: Jira, riff: Riff, newmenu: NewMenu, status: StatusBar, prompts: Prompts, jstatus: JStatus, usage: UsageWidget, usagestats: UsageStats };
+class Sidebar extends Tree { constructor() { super(false); } }
+const PARTS = { sidebar: Sidebar, rail: Rail, jira: Jira, riff: Riff, newmenu: NewMenu, status: StatusBar, prompts: Prompts, jstatus: JStatus, usage: UsageWidget, usagestats: UsageStats };
 
 export default class Kanban extends View {
   init(_props, cx) {
@@ -41,6 +43,7 @@ export default class Kanban extends View {
         for (;;) {
           const c = await nextCommand();
           if (c === "jira" || c === "tasks") railTo("jira");
+          if (c === "mode") toggleMode();
           if (c === "dev") railTo("dev");
           if (c === "riff" || c === "tune" || c === "dials") railTo("riff");
           if (c === "riff_open" && railShows() !== "riff") railTo("riff");
