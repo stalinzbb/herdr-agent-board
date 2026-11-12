@@ -53,6 +53,18 @@ Its changes don't touch your main checkout until you merge.
 a split of the pane you're in, or a new project from a folder. Herdr calls a project a *space*; a card is a
 *tab*, and a tab holds *panes*.
 
+## The sidebar
+
+**Board | Sidebar** in the top bar (⌘B) swaps the board for a list of the same tabs by project:
+
+- each project (its git repo), with "1 waiting" or "2 working" beside it when that's so; click to fold it
+- the branch its tabs are on, as a caption; a second checkout says **worktree**
+- one line per tab: a dot for what its agent is doing, its name, how many panes, how long ago it changed
+- under a tab, small labels for what it has going on: **riff** (it asked you a UI question; click to open
+  it), **asks you**, a port such as **:3000** when a dev server runs in its folder (click to open it),
+  **device**, and the ticket key when the tab's name or branch has one that's in progress in Tasks
+- a tab with several agents lists them, and running subagents show under their agent
+
 ## Where things live
 
 | | |
