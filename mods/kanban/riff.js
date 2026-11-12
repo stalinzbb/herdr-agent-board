@@ -219,7 +219,7 @@ function makeStates(panel, self) {
     }
   }
   if (!panel.note) {
-    panel.note = InputState.new({ placeholder: "Anything else? (optional)" });
+    panel.note = InputState.new({ placeholder: "Add a note" });
     panel.note.on("change", (_e, cx) => cx.notify());
     panel.note.on("submit", (_e, cx) => self.answer(panel, cx, "answered"));
     focusable(panel.note, "__note");
@@ -639,7 +639,7 @@ export class Riff {
       .when(panel.pending || panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
         .children(panel.leaves.map((l) => h_flex().h(28).pl(10).pr(10).gap(8).items_center().rounded(8).bg(p.ground)
           .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(p.muted).child(l.label))
-          .child(div().flex_shrink(1).min_w(0).max_w(140).truncate().text_size(12).font_family("Geist Mono").text_color(p.ink).child(fmt(panel.values[l.path]))))))
+          .child(div().flex_shrink(1).min_w(0).max_w(140).truncate().text_size(12).font_family("Geist Mono").text_color(p.ink).child(fmt(panel.values[l.path])))))))
       .when(!panel.pending && !panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
         .children(this.nodes(p, panel, panel.nodes))
         .child(div().h(4))
