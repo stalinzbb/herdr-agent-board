@@ -7,7 +7,7 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, props, closeOverlay, notify } from "herdr";
-import { ICON, STATUS, KIND, pal, tint, readConfig, editConfig, iconBtn, button, dot } from "./ui.js";
+import { ICON, STATUS, pal, tint, readConfig, editConfig, iconBtn, button, dot } from "./ui.js";
 
 const STATE = {
   blocked: { word: "waiting on you", color: STATUS.blocked },

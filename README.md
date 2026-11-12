@@ -49,6 +49,21 @@ The project on a card is its git repo. A **worktree** tag means the card works i
 that repo on its own branch (from **New → Agent in a new worktree…**, Claude's worktrees, or `git worktree`).
 Its changes don't touch your main checkout until you merge.
 
+**Markers.** Each kind of thing a session has is its own color, on the sidebar rows, the board cards, the
+rail tabs and the status bar (hover a marker for the specifics, such as the port numbers):
+
+| Color | Means |
+|---|---|
+| Red | An agent is waiting on your answer |
+| Violet | A riff is open |
+| Cyan | A dev server is running (the hover lists its ports) |
+| Pink | A simulator or device is in use |
+| Blue | Tasks (the Tasks tab's count) |
+| Amber / green | Working / finished (unchanged) |
+
+The broadcast icon in the top bar sends a saved prompt to your agents: with several, you tick which
+ones first (idle, working and waiting-on-you are shown; **Idle only** skips the busy ones), then pick the prompt.
+
 **New** in the top bar starts everything: an agent or a terminal in a new tab, an agent in a new worktree,
 a split of the pane you're in, or a new project from a folder. Herdr calls a project a *space*; a card is a
 *tab*, and a tab holds *panes*.
@@ -62,7 +77,8 @@ a split of the pane you're in, or a new project from a folder. Herdr calls a pro
 | `~/.cache/herdr-kanban/` | Jira results, digest, session map, usage summaries. Safe to delete. |
 | `~/.local/share/herdr-kanban/usage.db` | Long-term Claude usage history (SQLite). |
 
-Settings files: `jira.json`, `dev.json`, `prompts.json`, `usage.json` (`code_roots`), and optionally
+Settings files: `jira.json`, `dev.json`, `prompts.json`, `task-agent.json` (the agent tasks start with,
+written by the Tasks panel), `usage.json` (`code_roots`), and optionally
 `prices.json` and `models.json` to override API prices and context window sizes. The ✎ button on
 each panel opens yours, making it from the default the first time.
 
@@ -76,14 +92,17 @@ each panel opens yours, making it from the default the first time.
 ## Tasks panel: sources
 
 `tasks.json` turns sources on; each adds its own tab(s), and Today gathers the open work from all of them.
-Every row opens its link, its status pill moves it, and ▶ starts an agent on it in a new tab.
+Every row opens its link, its status pill moves it, and ▶ starts an agent on it in a new tab. The agent is
+your default (the terminal icon in the panel's header picks it; it's kept in
+`~/.config/herdr-board/task-agent.json`, and with none saved it's the first installed one). The arrow
+next to ▶ starts that one task with a different agent. **+** in the header adds a task of your own.
 
 | Source | How it connects | Tab | Status changes |
 |---|---|---|---|
 | `jira` | Claude's Atlassian connector (`claude -p --model haiku`), settings in `jira.json` | The preset's tabs, plus the morning digest on Today | Jira's workflow |
 | `github` | The `gh` CLI you're signed in to | GitHub: Issues (assigned to you), Pull requests (review requests, yours) | Close / reopen issues |
 | `linear` | A personal API key in your Keychain (`herdr-board-linear`) or `$LINEAR_API_KEY` | Linear: issues assigned to you | Your team's states |
-| `local` | Nothing: `~/.config/herdr-board/tasks.local.json` | Mine: add tasks at the top, or an agent runs `tasks-sync.py add "…"` | To do / Doing / Done |
+| `local` | Nothing: `~/.config/herdr-board/tasks.local.json` | No tab: **+** adds a task, or an agent runs `tasks-sync.py add "…"`; they show in Today | To do / Doing / Done |
 
 ```json
 { "name": "Tasks",
@@ -131,7 +150,10 @@ model. If your Atlassian tools have another name, list them under `"tools"` in `
 When an agent needs your call on something visual (how much spacing, which color, which variant, how
 a spring feels), it opens a **riff**: a question with live controls (sliders, colors, toggles,
 selects, springs, easings) in the rail's **Riff** tab, next to its pane. You drag, add a note if you
-like, and **Answer** (or **Skip**). The answer goes straight back to the agent and the riff closes.
+like, and **Answer**. The answer goes straight back to the agent and the riff closes. The card says who
+is asking (the project, then chips for the tab, branch, pane and session id) and shows the question
+below it. Its caret (or the whole project row) folds the riff to one line, and with several waiting only
+the first starts open; **Collapse all** sits above them. Controls are grouped into cards you can fold.
 
 - It's contextual: the Riff tab shows the questions from the tab you're on, the focused pane's first.
   When several agents share a tab, each riff says which pane asks (`<tab> · <branch>`); click it to go

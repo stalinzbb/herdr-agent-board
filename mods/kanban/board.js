@@ -11,7 +11,7 @@
 
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgentOrder, openOverlay, home, window, layout } from "herdr";
+import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgentOrder, openOverlay, window, layout } from "herdr";
 import { ICON, STATUS, KIND, tint, pal, ago, dot, progIcon, iconBtn, tilde } from "./ui.js";
 import { devFor } from "./kinds.js";
 import { railTo } from "./railtabs.js";
