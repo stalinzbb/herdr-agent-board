@@ -216,6 +216,12 @@ go back. It makes no Jira calls and changes nothing.
 
 ⌘⇧K board ⇄ classic · ⌘B board ⇄ projects sidebar · ⌘⇧B right panel on/off · ⌘⇧E Dev · ⌘⇧J Tasks · ⌘⇧Y Riff · ⌘⇧U usage stats · ⌘⇧M mute sounds
 
+`./install.sh` adds these to `~/.config/herdr-app/keys.json`, in the board layout's section (⌘⇧K is also
+added to your classic layout, to come back). It only adds keys you haven't bound: if one is taken, yours
+stays and the install prints which. Before it changes the file, a copy goes to
+`~/.config/herdr-board/backup/`. To use another key, edit `keys.json` in Herdr's folder; later installs
+leave it alone.
+
 **Mute** (⌘⇧M, or the speaker in the top bar) turns Herdr's attention sounds off and on. It flips
 `sounds.enabled` in `~/.config/herdr-app/settings.json`; notifications still appear, silently.
 
