@@ -590,11 +590,7 @@ export class Riff {
   emptyView(p, compact) {
     const targets = this.askTargets();
     const open = !compact || this.askOpen;
-    const btn = (id, label, onPress, primary) => div().id(id).flex_none().h(26).px(10).flex().items_center().rounded(8).text_size(12).font_medium()
-      .bg(primary ? p.ink : p.raised).text_color(primary ? p.ground : p.muted)
-      .cursor_pointer().hover((s) => s.opacity(0.9)).active((s) => s.opacity(0.75))
-      .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); onPress(cx); })
-      .child(label);
+    const btn = (id, label, onPress, primary) => button(p, id, label, (_e, cx) => onPress(cx), { variant: primary ? "primary" : "secondary" });
     const ask = (a) => (cx) => cx.spawn(async () => {
       const r = await exec("hc", ["send", a.address, SAMPLE]).catch((e) => ({ code: 1, stderr: String(e) }));
       notify(r.code === 0 ? { title: "Asked for a riff", body: askerLabel(a), level: "success", timeout: 2000 } : { title: "Couldn't reach the agent", body: (r.stderr || "").trim().slice(0, 160), level: "warning" });
@@ -681,7 +677,7 @@ export class Riff {
             .child(div().w(5).h(5).rounded_full().bg(p.accent))
             .child(div().text_size(11).text_color(p.muted).child(String(changed)))))
           // A riff from another pane: take me there.
-          .when(!!agent && agent.address !== focused()?.terminal, (el) => el.child(h_flex().id(`go-${panel.stem}`).flex_none().w(24).h(24).justify_center().items_center().rounded(8).cursor_pointer()
+          .when(!!agent && agent.address !== focused()?.terminal, (el) => el.child(h_flex().id(`go-${panel.stem}`).flex_none().w(28).h(28).justify_center().items_center().rounded(8).cursor_pointer()
             .hover((s) => s.bg(p.hover))
             .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); goToRiff(agent.address); })
             .child(svg(ICON("external")).size(13).text_color(p.muted))))
@@ -840,20 +836,37 @@ function noteField(p, state, focus) {
 }
 
 // The send button: its own row, so a narrow panel never squeezes the note.
-function sendBtn(p, id, can, busy, label, onSend) {
-  return h_flex().id(`btn-${id}`).flex_none().h(32).pl(12).pr(14).gap(6).items_center().rounded(10).text_size(12.5).font_medium()
-    .bg(can ? p.ink : p.raised)
-    .text_color(can ? p.ground : p.faint)
-    .when(can, (el) => el.cursor_pointer().hover((s) => s.opacity(0.9)).active((s) => s.opacity(0.75)))
-    .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); if (can) onSend(cx); })
-    .child(svg(ICON(busy ? "spinner" : "message")).size(13))
+// One button for the whole panel, in three weights, so every action reads the same way.
+//   primary    the one thing to do here (ink fill)
+//   secondary  an equal-but-quieter choice (raised fill, hairline edge)
+//   ghost      a small aside (no fill until you point at it)
+// Every variant has a hover, a pressed and (where it can happen) a disabled state, and a hit
+// area of at least 28px; a button that is busy keeps its label and swaps its icon for a spinner.
+function button(p, id, label, onPress, opts = {}) {
+  const { variant = "secondary", icon, busy = false, disabled = false } = opts;
+  const ghost = variant === "ghost";
+  const live = !disabled && !busy;
+  const fill = variant === "primary" ? p.ink : variant === "secondary" ? p.raised : "#00000000";
+  const ink = disabled ? p.faint : variant === "primary" ? p.ground : ghost ? p.muted : p.ink;
+  return h_flex().id(id).flex_none().h(ghost ? 28 : 32).px(ghost ? 10 : 12).gap(6).items_center().justify_center()
+    .rounded(ghost ? 8 : 10).text_size(ghost ? 12 : 12.5).font_medium().whitespace_nowrap()
+    .bg(disabled ? p.raised : fill).text_color(ink)
+    .when(variant === "secondary", (el) => el.border_1().border_color(p.line))
+    .when(live, (el) => el.cursor_pointer()
+      .hover((s) => (variant === "primary" ? s.opacity(0.88) : s.bg(ghost ? p.hover : p.selected).text_color(p.ink)))
+      .active((s) => s.opacity(0.7)))
+    .when(!live, (el) => el.cursor_default())
+    .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); if (live) onPress(e, cx); })
+    .when(busy || !!icon, (el) => el.child(svg(ICON(busy ? "spinner" : icon)).size(13).flex_none()))
     .child(label);
 }
 
+// The panel's primary action (a riff's Answer).
+function sendBtn(p, id, can, busy, label, onSend) {
+  return button(p, `btn-${id}`, label, (_e, cx) => onSend(cx), { variant: "primary", icon: "message", busy, disabled: !can && !busy });
+}
+
+// A small aside: Reset, Try again, Collapse all.
 function textBtn(p, id, label, onPress) {
-  return div().id(id).flex_none().h(22).px(6).flex().items_center().rounded(6).text_size(11.5).text_color(p.faint).cursor_pointer()
-    .hover((s) => s.bg(p.hover).text_color(p.ink))
-    .active((s) => s.opacity(0.8))
-    .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); onPress(e, cx); })
-    .child(label);
+  return button(p, id, label, onPress, { variant: "ghost" });
 }
