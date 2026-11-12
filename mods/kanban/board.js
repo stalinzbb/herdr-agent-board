@@ -244,7 +244,7 @@ export function setMode(mode) {
   const want = { board: mode === "board", side: mode === "sidebar" };
   for (const id of ["board", "side"]) if (hidden(id) === want[id]) run("layout.toggle", { id });
 }
-export const toggleMode = () => setMode(findNode(layout(), "side")?.hidden === false ? "board" : "sidebar");
+export const toggleMode = () => setMode(!findNode(layout(), "side")?.hidden ? "board" : "sidebar");
 
 export function bar() {
   const p = pal();
@@ -255,7 +255,7 @@ export function bar() {
   // macOS draws its window buttons over the bar (traffic_lights at x 14); leave them room
   // only while they show. Full screen hides them.
   const lights = win.buttons && !win.fullscreen;
-  const sideShown = findNode(layout(), "side")?.hidden === false;
+  const sideShown = !findNode(layout(), "side")?.hidden;
   const railShown = !findNode(layout(), "rail")?.hidden;
   return h_flex()
     .size_full()
