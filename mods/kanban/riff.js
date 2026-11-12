@@ -656,19 +656,19 @@ export class Riff {
         .when(!!panel.spec.about, (el) => el.child(div().w_full().min_w(0).text_size(11.5).text_color(p.faint).child(panel.spec.about))))
       .when(!!panel.error, (el) => el.child(div().w_full().min_w(0).px(16).pt(4).text_size(12).text_color(STATUS.blocked).child(panel.error)))
       // No controls yet (made on your first pointer move here): its values as text.
-      .when(panel.pending || panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
-        .children(panel.leaves.map((l) => h_flex().h(28).pl(10).pr(10).gap(8).items_center().rounded(8).bg(p.ground)
+      .when(panel.pending || panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(10).gap(6).rounded(16).bg(p.card)
+        .children(panel.leaves.map((l) => h_flex().h(32).pl(12).pr(12).gap(8).items_center().rounded(10).bg(p.ground)
           .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(p.muted).child(l.label))
           .child(div().flex_shrink(1).min_w(0).max_w(140).truncate().text_size(12).font_family("Geist Mono").text_color(p.ink).child(fmt(panel.values[l.path])))))))
-      .when(!panel.pending && !panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
+      .when(!panel.pending && !panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(10).gap(6).rounded(16).bg(p.card)
         .children(this.nodes(p, panel, panel.nodes))
-        .child(div().h(4))
+        .child(div().h(2))
         .child(noteField(p, panel.note, panel.focus === "__note"))
         .when(!!panel.failed, (el) => el.child(v_flex().min_w(0).gap(6).p(8).rounded(8).bg(p.ground)
           .child(div().w_full().min_w(0).text_size(11.5).text_color(STATUS.blocked).child(panel.failed.msg))
           .child(h_flex().justify_end().child(textBtn(p, `retry-${panel.stem}`, "Try again", (_e, cx) => this.answer(panel, cx, panel.failed.status, panel.failed.action))))))
-        .child(h_flex().px(4).pt(2).gap(8).items_center().min_w(0)
-          .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(p.faint).child(status ?? ""))
+        .when(!!status, (el) => el.child(div().w_full().min_w(0).px(4).text_size(11.5).text_color(p.faint).child(status)))
+        .child(h_flex().px(2).pt(2).gap(6).items_center().justify_end().min_w(0)
           .when(changed > 0 && !panel.answered, (el) => el.child(textBtn(p, `rst-${panel.stem}`, "Reset", (_e, cx) => this.reset(panel, cx))))
           .when(!panel.answered, (el) => el.child(textBtn(p, `skip-${panel.stem}`, "Skip", (_e, cx) => this.answer(panel, cx, "skipped"))))
           .child(sendBtn(p, `ans-${panel.stem}`, !panel.answered, !!panel.answered, "Answer", (cx) => this.answer(panel, cx, "answered"))))));
@@ -683,8 +683,8 @@ export class Riff {
       const open = this.isOpen(key, !n.collapsed);
       const mine = leavesOf(n.children).filter((l) => VALUE_KINDS.has(l.kind));
       const changed = mine.filter((l) => !same(panel.values[l.path], l.def)).length;
-      return v_flex().min_w(0).p(4).gap(4).rounded(12).bg(depth % 2 === 0 ? p.raised : p.card)
-        .child(h_flex().id(key).h(28).pl(6).pr(8).gap(6).items_center().min_w(0).rounded(8).cursor_pointer()
+      return v_flex().min_w(0).p(6).gap(6).rounded(14).bg(depth % 2 === 0 ? p.raised : p.card)
+        .child(h_flex().id(key).h(32).pl(8).pr(10).gap(8).items_center().min_w(0).rounded(10).cursor_pointer()
           .hover((s) => s.bg(p.hover))
           .on_mouse_down("left", (_e, cx) => { this.toggle(key, !n.collapsed); cx.notify(); })
           .child(svg(ICON(open ? "chevron-down" : "chevron-right")).size(12).flex_none().text_color(p.muted))
@@ -693,7 +693,7 @@ export class Riff {
             .child(div().w(5).h(5).rounded_full().bg(p.accent))
             .child(div().text_size(11).text_color(p.muted).child(String(changed)))))
           .when(changed === 0 && !open, (el) => el.child(div().flex_none().text_size(11).text_color(p.faint).child(String(mine.length)))))
-        .when(open, (el) => el.child(v_flex().min_w(0).gap(4).children(this.nodes(p, panel, n.children, depth + 1))));
+        .when(open, (el) => el.child(v_flex().min_w(0).gap(6).children(this.nodes(p, panel, n.children, depth + 1))));
     });
   }
 
@@ -703,18 +703,18 @@ export class Riff {
     const changed = VALUE_KINDS.has(l.kind) && !same(v, l.def);
     const id = (kind) => `${kind}-${panel.stem}-${l.path}`;
     // Every control is one 28px bar, radius 8, the label inside on the left.
-    const bar = (kind) => h_flex().id(id(kind)).h(28).pl(10).pr(4).gap(8).items_center().rounded(8).bg(p.ground).min_w(0).overflow_hidden();
+    const bar = (kind) => h_flex().id(id(kind)).h(32).pl(12).pr(4).gap(8).items_center().rounded(10).bg(p.ground).min_w(0).overflow_hidden();
     const label = () => h_flex().min_w(0).gap(6).items_center()
       .child(div().min_w(0).truncate().text_size(12).text_color(changed ? p.ink : p.muted).child(l.label))
       .when(changed, (el) => el.child(div().w(5).h(5).flex_none().rounded_full().bg(p.accent)));
     // A field shows its edge only while you type in it.
     const field = (state, opts = {}) => div()
       .id(id("fld"))
-      .h(22)
+      .h(24)
       .px(6)
       .flex()
       .items_center()
-      .rounded(6)
+      .rounded(8)
       .border_1()
       .border_color(panel.bad?.[l.path] ? STATUS.blocked : panel.focus === l.path ? p.accent : "#00000000")
       .cursor_text()
@@ -735,41 +735,41 @@ export class Riff {
         const at = w ? (((Math.min(l.max, Math.max(l.min, v)) - l.min) / (l.max - l.min || 1)) * w) / zoom : null;
         const under = at != null && at > 4 && at < 10 + l.label.length * 6.6 + (changed ? 11 : 0) + 6;
         const line = under ? "#00000000" : changed ? p.accent : p.muted;
-        return h_flex().gap(4).items_center()
+        return h_flex().gap(6).items_center()
           .child(div().id(id("sz")).flex_1().min_w(0)
             .on_size_change((size, cx) => {
               this.widths ??= {};
               if (Math.abs((this.widths[id("sz")] ?? 0) - size.width) > 0.5) { this.widths[id("sz")] = size.width; cx.notify(); }
             })
             .child(Slider.new(s).w_full().child(
-            SliderTrack.new(s).h(28).w_full().cursor_pointer().child(
+            SliderTrack.new(s).h(32).w_full().cursor_pointer().child(
               SliderIndicator.new(s)
-                .relative().w_full().h_full().rounded(8).bg(p.ground)
+                .relative().w_full().h_full().rounded(10).bg(p.ground)
                 // The value line is the fill's edge: it paints under the label, so text stays readable.
                 .range_style((fill) => fill.rounded_l(8).border_r_2().border_color(line).bg(changed ? tint(p.accent, "33") : p.selected))
                 .child(h_flex().absolute().top(0).left(10).right(6).h_full().items_center().overflow_hidden().child(label()))
                 // The shell paints the thumb above everything: keep it as an invisible grab handle.
-                .child(SliderThumb.new(s).id(id("thumb")).w(12).h(28).ml(-6))))))
-          .child(field(st.field, { w: 52, mono: true }));
+                .child(SliderThumb.new(s).id(id("thumb")).w(14).h(32).ml(-7))))))
+          .child(field(st.field, { w: 56, mono: true }));
       }
       case "toggle":
-        return bar("tg").pr(6).cursor_pointer().hover((s) => s.bg(p.hover))
+        return bar("tg").pr(8).cursor_pointer().hover((s) => s.bg(p.hover))
           .on_mouse_down("left", (_e, cx) => { panel.values[l.path] = !v; this.flush(panel, cx); cx.notify(); })
           .child(div().flex_1().min_w(0).child(label()))
-          .child(h_flex().w(28).h(16).flex_none().p(2).rounded(8).bg(v ? p.accent : p.raised).when(!!v, (el) => el.justify_end())
-            .child(div().w(12).h(12).rounded(6).bg(v ? "#ffffff" : p.muted)));
+          .child(h_flex().w(36).h(20).flex_none().p(2).rounded(10).bg(v ? p.accent : p.raised).when(!!v, (el) => el.justify_end())
+            .child(div().w(16).h(16).rounded(8).bg(v ? "#ffffff" : p.muted)));
       case "color": {
         const ok = HEX.test(String(v).trim());
         return bar("col")
           .child(div().flex_1().min_w(0).child(label()))
-          .child(div().w(16).h(16).flex_none().rounded(4).border_1().border_color("#ffffff1a").when(ok, (el) => el.bg(String(v).trim())))
-          .child(field(st.field, { w: 92, mono: true }));
+          .child(div().w(18).h(18).flex_none().rounded(5).border_1().border_color("#ffffff1a").when(ok, (el) => el.bg(String(v).trim())))
+          .child(field(st.field, { w: 96, mono: true }));
       }
       case "text":
       case "numbers":
         return bar("txt").child(h_flex().flex_shrink(1).min_w(0).max_w(110).child(label())).child(field(st.field, { mono: l.kind === "numbers" }));
       case "select": {
-        const seg = (o) => div().id(id(`opt-${o.value}`)).h(22).px(8).min_w(0).truncate().flex().items_center().rounded(6).text_size(12).cursor_pointer()
+        const seg = (o) => div().id(id(`opt-${o.value}`)).h(26).px(10).min_w(0).truncate().flex().items_center().rounded(8).text_size(12).cursor_pointer()
           .when(v === o.value, (el) => el.bg(p.raised))
           .text_color(v === o.value ? p.ink : p.faint)
           .hover((s) => s.text_color(p.ink))
@@ -778,12 +778,12 @@ export class Riff {
         // Short lists sit on the bar, segmented (22 + 3 + 3 = 28: radius 6 inside 8 at 2px in); long ones wrap below.
         const fits = l.options.length <= 3 && l.options.reduce((n, o) => n + o.label.length + 3, l.label.length) <= 30;
         if (fits) return bar("sel").pr(3).child(div().flex_1().min_w(0).child(label())).children(l.options.map((o) => seg(o).child(o.label)));
-        return v_flex().gap(4).p(3).rounded(8).bg(p.ground).min_w(0)
-          .child(h_flex().h(22).pl(7).items_center().min_w(0).child(label()))
+        return v_flex().gap(6).p(3).rounded(10).bg(p.ground).min_w(0)
+          .child(h_flex().h(26).pl(9).items_center().min_w(0).child(label()))
           .child(h_flex().flex_wrap().gap(2).min_w(0).children(l.options.map((o) => seg(o).child(o.label))));
       }
       case "action":
-        return h_flex().id(id("act")).h(28).px(10).items_center().justify_center().rounded(8).bg(p.raised)
+        return h_flex().id(id("act")).h(32).px(12).items_center().justify_center().rounded(10).bg(p.raised)
           .text_size(12).text_color(p.muted).cursor_pointer().hover((s) => s.text_color(p.ink)).active((s) => s.opacity(0.8))
           .on_mouse_down("left", (_e, cx) => this.answer(panel, cx, "answered", l))
           .child(l.label);
@@ -798,7 +798,7 @@ const tint = (color, alpha) => (/^#[0-9a-f]{6}$/i.test(color) ? color + alpha : 
 
 // The note: a field of its own, full width.
 function noteField(p, state, focus) {
-  return h_flex().flex_none().min_w(0).px(6).h(36).items_center().rounded(12).border_1()
+  return h_flex().flex_none().min_w(0).px(8).h(40).items_center().rounded(12).border_1()
     .border_color(focus ? p.accent : p.line).bg(p.ground).cursor_text()
     .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
     .child(div().flex_1().min_w(0).child(Input.new(state).w_full().text_size(12).text_color(p.ink)));
@@ -806,7 +806,7 @@ function noteField(p, state, focus) {
 
 // The send button: its own row, so a narrow panel never squeezes the note.
 function sendBtn(p, id, can, busy, label, onSend) {
-  return h_flex().id(`btn-${id}`).flex_none().h(28).pl(10).pr(12).gap(6).items_center().rounded(8).text_size(12.5).font_medium()
+  return h_flex().id(`btn-${id}`).flex_none().h(32).pl(12).pr(14).gap(6).items_center().rounded(10).text_size(12.5).font_medium()
     .bg(can ? p.ink : p.raised)
     .text_color(can ? p.ground : p.faint)
     .when(can, (el) => el.cursor_pointer().hover((s) => s.opacity(0.9)).active((s) => s.opacity(0.75)))
