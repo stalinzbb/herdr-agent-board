@@ -171,6 +171,10 @@ const urgent = (list) => list.filter((c) => c.column === "you" && c.turn === "as
 const quiet = (c) => c.turn !== "ask" && c.turn !== "new" && !!c.tab.changed_at && Date.now() - c.tab.changed_at > DAY;
 
 // `pick`: several agents are shown first, ticked, so you choose who gets it before you pick the prompt.
+// Send to all agents (the top-bar broadcast button) is off for now: saved prompts live in a JSON file
+// and need an in-app editor first. Set to true to bring the button back. A card's own prompt button stays.
+const SEND_TO_ALL = false;
+
 export function openPrompts(targets, title, pick = false) {
   const who = pick
     ? agents().filter((a) => targets.includes(a.address)).map((a) => ({ address: a.address, label: askerLabel(a), status: a.status }))
@@ -287,7 +291,7 @@ export function bar() {
           .child(dot(STATUS.blocked, 6))
           .child(`${asks.length} waiting on you`)))
     .child(div().flex_1())
-    .when(live.length > 0, (el) => el.child(tool(p, "prompt-all", "broadcast", live.length > 1 ? `Send a saved prompt to your agents: choose which of the ${live.length}` : "Send a saved prompt to your agent", () => openPrompts(live, `All agents (${live.length})`, live.length > 1))))
+    .when(SEND_TO_ALL && live.length > 0, (el) => el.child(tool(p, "prompt-all", "broadcast", live.length > 1 ? `Send a saved prompt to your agents: choose which of the ${live.length}` : "Send a saved prompt to your agent", () => openPrompts(live, `All agents (${live.length})`, live.length > 1))))
     .child(tool(p, "mute", soundsOn() ? "speaker" : "speaker-mute", soundsOn() ? "Mute notification sounds  ⌘⇧M" : "Sounds are muted: turn them on  ⌘⇧M", () => toggleMute(), !soundsOn()))
     .child(tool(p, "toggle-rail", "panel", "Side panel  ⌘⇧B · Dev ⌘⇧E · Tasks ⌘⇧J · Riff ⌘⇧Y", () => run("layout.toggle", { id: "rail" }), railShown))
     .child(tool(p, "to-classic", "classic", "Herdr's classic layout  ⌘⇧K", () => run("layout.switch", { name: "main" })))
