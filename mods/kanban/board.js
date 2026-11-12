@@ -9,6 +9,7 @@
 //   Done      - tabs you marked done (Herdr's tab.settle: put away, still running). Opening one, or
 //               its agent needing you, brings it back.
 
+import { soundsOn, toggleMute } from "./mute.js";
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgentOrder, openOverlay, window, layout } from "herdr";
@@ -287,7 +288,8 @@ export function bar() {
           .child(`${asks.length} waiting on you`)))
     .child(div().flex_1())
     .when(live.length > 0, (el) => el.child(tool(p, "prompt-all", "broadcast", live.length > 1 ? `Send a saved prompt to your agents: choose which of the ${live.length}` : "Send a saved prompt to your agent", () => openPrompts(live, `All agents (${live.length})`, live.length > 1))))
-    .child(tool(p, "toggle-rail", "panel", "Side panel: Dev ⌘⇧E · Tasks ⌘⇧J · Riff ⌘⇧Y", () => run("layout.toggle", { id: "rail" }), railShown))
+    .child(tool(p, "mute", soundsOn() ? "speaker" : "speaker-mute", soundsOn() ? "Mute notification sounds  ⌘⇧M" : "Sounds are muted: turn them on  ⌘⇧M", () => toggleMute(), !soundsOn()))
+    .child(tool(p, "toggle-rail", "panel", "Side panel  ⌘⇧B · Dev ⌘⇧E · Tasks ⌘⇧J · Riff ⌘⇧Y", () => run("layout.toggle", { id: "rail" }), railShown))
     .child(tool(p, "to-classic", "classic", "Herdr's classic layout  ⌘⇧K", () => run("layout.switch", { name: "main" })))
     .child(div().w(1).h(18).mx(6).bg(p.line))
     .child(

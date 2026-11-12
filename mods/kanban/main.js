@@ -22,6 +22,7 @@ import { JStatus } from "./jstatus.js";
 import { UsageWidget, UsageStats } from "./usage.js";
 import { Sidebar } from "./sidebar.js";
 import { railtabs, railTo, railShows } from "./railtabs.js";
+import { toggleMute } from "./mute.js";
 
 const PARTS = { sidebar: Sidebar, rail: Rail, jira: Jira, riff: Riff, newmenu: NewMenu, status: StatusBar, prompts: Prompts, jstatus: JStatus, usage: UsageWidget, usagestats: UsageStats };
 
@@ -43,6 +44,9 @@ export default class Kanban extends View {
           const c = await nextCommand();
           if (c === "jira" || c === "tasks") railTo("jira");
           if (c === "mode") toggleMode();
+          // Right panel (Dev / Tasks / Riff) on or off: kanban.panel. Sounds on or off: kanban.mute.
+          if (c === "panel") run("layout.toggle", { id: "rail" });
+          if (c === "mute") toggleMute();
           // The sidebar's view: kanban.side_project, kanban.side_turn, kanban.side_kind.
           if (c.startsWith("side_")) setShared("kanban.side.view", c.slice("side_".length));
           if (c === "dev") railTo("dev");
