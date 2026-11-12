@@ -18,6 +18,7 @@ Writes ~/.cache/herdr-kanban/{jira,digest,status}.json.
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -135,8 +136,16 @@ def row(issue):
     }
 
 
+def need_claude():
+    """Jira goes through Claude Code's Atlassian connector; say so plainly when it isn't there."""
+    if not shutil.which("claude"):
+        raise RuntimeError("Jira needs Claude Code (the claude command) with the Atlassian connector. "
+                           "Install it, or turn Jira off in tasks.json and use GitHub, Linear or your own tasks.")
+
+
 def call_tools(prompt, tools):
     """Has Claude make the tool calls the prompt asks for; returns [(name, input, result_text)]."""
+    need_claude()
     proc = subprocess.run(
         ["claude", "-p", prompt, "--model", "haiku", "--allowedTools", *tools,
          "--output-format", "stream-json", "--verbose"],
@@ -218,6 +227,7 @@ def run_claude(searches):
         f'{i + 1}. jql: {json.dumps(jql)}  maxResults: {mx}  fields: {json.dumps(fields)}' + (f'  responseContentFormat: "{fmt}"' if fmt else "")
         for i, (jql, fields, mx, fmt) in enumerate(searches)
     )
+    need_claude()
     cloud = config()["cloudId"]
     TOOLS = config()["tools"]["search"]
     prompt = (

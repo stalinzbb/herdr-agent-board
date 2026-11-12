@@ -133,7 +133,7 @@ next to ▶ starts that one task with a different agent. **+** in the header add
     "jira": { "enabled": true },
     "github": { "enabled": true, "issues": "is:open assignee:@me org:acme archived:false" },
     "linear": { "enabled": false },
-    "local": { "enabled": true, "label": "Mine" } } }
+    "local": { "enabled": true } } }
 ```
 
 GitHub's `issues`, `closed`, `prs` and `reviews` are GitHub search queries; `recent_days` (14) is how far
@@ -157,7 +157,7 @@ back closed work shows. Jira refreshes every `refresh_minutes` in work hours, th
 |---|---|---|
 | `designer` | Today · Design · Dev (features, prototypes) · Design QA · Recent | `design`, `dev` projects; optional `spike_type`, `subtask_types`, `qa_types`, `qa_title`, `design_done`, `design_todo` |
 | `engineer` | Today · My work · Review · Bugs · Recent | `projects` (a list); optional `review_statuses`, `bug_type` |
-| `mine` | Today · Assigned · Reported · Recent | none |
+| `mine` (the default) | Today · Assigned · Reported · Recent | none; a Jira preset for your own tickets, not a tab for your own tasks (those are the **+** in the panel) |
 
 A list var becomes a quoted JQL list. Any other top-level key you set (`name`, `default_tab`, `views`,
 `tabs`, `today_tabs`, `digest_at`, `work_hours`, …) replaces the preset's; `skills/workflow/SKILL.md`
@@ -167,6 +167,10 @@ explains each, including `status_map` (`new` / `indeterminate` / `done` / `hide`
 Jira calls go through `claude -p --model haiku` with only the connector's Jira tools allowed. The
 results are read from the tool calls as Jira returned them, so nothing in the panel is written by the
 model. If your Atlassian tools have another name, list them under `"tools"` in `jira.json` (see the skill).
+
+**Jira needs Claude Code**, signed in and with the Atlassian connector. Without the `claude` command the
+panel says so instead of failing quietly. Other agents can't make these calls. GitHub, Linear and your own
+tasks don't use Claude, so turn Jira off in `tasks.json` and the rest works.
 
 ## Riff: agents ask you UI questions
 
@@ -195,9 +199,25 @@ the iOS simulator, Flutter and desktop apps, and short rounds where there's no p
 just say "riff me the card spacing".
 
 With nothing open, the Riff tab offers a prompt to send: **Ask this agent** on an agent's pane, or one
-button per agent in the tab when you're on another pane (a dev server, a simulator). The prompt names
-the skill and falls back to `riff.py --help`, so it also works in an agent that started before the
-plugin was installed (restart those to load the skill properly).
+button per agent in the tab when you're on another pane (a dev server, a simulator). The prompt points
+the agent at `riff.py --help`, which has everything it needs, so it works in any agent (Codex, Gemini,
+anything that can run a command), and in a Claude Code session that started before the plugin was
+installed. Agents with the `herdr-agent-board:riff` skill can use that instead.
+
+## Other agents
+
+Herdr runs any agent, and so does the board. Most of it doesn't care which:
+
+| Works with any agent | Needs Claude Code |
+|---|---|
+| The board, the sidebar and the markers | Jira tasks (the connector) |
+| Riffs (the agent runs `riff.py`; see above) | The setup and workflow skills, and the plugin's riff skill |
+| Starting a task in the agent you pick (the terminal icon in Tasks, or an arrow on a row) | Usage and cost stats, and Claude's stats in the pane header |
+| Saved prompts typed into an agent | The session hook (it lets the header find Claude's session) |
+| Dev servers and simulators; GitHub, Linear and your own tasks | |
+
+Without Claude Code, run `./install.sh` and skip the plugin; edit the files under
+`~/.config/herdr-board/` yourself (see Where things live).
 
 ## What it runs
 
