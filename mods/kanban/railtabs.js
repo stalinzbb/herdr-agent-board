@@ -54,6 +54,7 @@ export function railtabs() {
     .bg(p.col)
     .child(h_flex().w_full().p(2).gap(2).rounded(16).bg(p.ground)
       .child(tab("dev", "Dev"))
-      .child(tab("jira", shared("kanban.tasks.name") || "Tasks", count, "task"))
+      // Hidden until something feeds it (a connected source or a task of yours); ⌘⇧J still opens it.
+      .when(shared("kanban.tasks.shown") !== false || cur === "jira", (el) => el.child(tab("jira", shared("kanban.tasks.name") || "Tasks", count, "task")))
       .child(tab("riff", "Riff", (shared("kanban.riffs") ?? []).length, "riff")));
 }

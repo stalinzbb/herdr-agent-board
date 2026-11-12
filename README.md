@@ -120,6 +120,13 @@ your default (the terminal icon in the panel's header picks it; it's kept in
 `~/.config/herdr-board/task-agent.json`, and with none saved it's the first installed one). The arrow
 next to ▶ starts that one task with a different agent. **+** in the header adds a task of your own.
 
+**You choose where tasks come from.** Nothing is connected until you connect it. With no source yet, the
+panel asks: **Connect** turns on GitHub or Linear in one click (it writes your `tasks.json`). A source this
+machine can't run is skipped and the panel says what it needs (the `gh` CLI, a Linear key, Claude Code for
+Jira). Jira also needs its site set up: run the setup skill. If nothing feeds the panel (no source, no tasks
+of your own), its tab is hidden from the Dev | Tasks | Riff switch; ⌘⇧J still opens it to connect one, and
+adding a task with **+** brings the tab back.
+
 | Source | How it connects | Tab | Status changes |
 |---|---|---|---|
 | `jira` | Claude's Atlassian connector (`claude -p --model haiku`), settings in `jira.json` | The preset's tabs, plus the morning digest on Today | Jira's workflow |
