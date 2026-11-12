@@ -237,6 +237,14 @@ function segment(p, id, label, on, onPress) {
 
 const findNode = (node, id) => (node?.id === id ? node : (node?.children ?? []).map((c) => findNode(c, id)).find(Boolean) ?? null);
 
+// The top-left switch: the kanban board, or the projects sidebar, never both.
+export function setMode(mode) {
+  const hidden = (id) => !!findNode(layout(), id)?.hidden;
+  const want = { board: mode === "board", side: mode === "sidebar" };
+  for (const id of ["board", "side"]) if (hidden(id) === want[id]) run("layout.toggle", { id });
+}
+export const toggleMode = () => setMode(findNode(layout(), "side")?.hidden === false ? "board" : "sidebar");
+
 export function bar() {
   const p = pal();
   const list = cards();
@@ -246,7 +254,7 @@ export function bar() {
   // macOS draws its window buttons over the bar (traffic_lights at x 14); leave them room
   // only while they show. Full screen hides them.
   const lights = win.buttons && !win.fullscreen;
-  const boardShown = !findNode(layout(), "board")?.hidden;
+  const sideShown = findNode(layout(), "side")?.hidden === false;
   const railShown = !findNode(layout(), "rail")?.hidden;
   return h_flex()
     .size_full()
@@ -257,12 +265,16 @@ export function bar() {
     .bg(p.col)
     .text_color(p.ink)
     .child(image("mods/kanban/herdr.png").w(22).h(22).flex_none().mr(6))
-    .child(div().text_size(14).font_semibold().mr(10).child("Board"))
-    // Which spaces the board shows: a segmented control, the space's own name when it's one.
     .child(
+      h_flex().gap(2).p(2).rounded(10).bg(p.ground).mr(6)
+        .tooltip("Kanban board or projects sidebar  ⌘B")
+        .child(segment(p, "mode-board", "Board", !sideShown, () => setMode("board")))
+        .child(segment(p, "mode-side", "Sidebar", sideShown, () => setMode("sidebar"))))
+    // Which spaces the board shows: a segmented control, the space's own name when it's one.
+    .when(!sideShown, (el) => el.child(
       h_flex().gap(2).p(2).rounded(10).bg(p.ground)
         .child(segment(p, "scope-all", "All", scope() === "all", () => setShared("kanban.scope", "all")))
-        .child(segment(p, "scope-space", demo() ? "Acme Store" : spaces().find((s) => s.active)?.name ?? "This space", scope() === "space", () => setShared("kanban.scope", "space"))))
+        .child(segment(p, "scope-space", demo() ? "Acme Store" : spaces().find((s) => s.active)?.name ?? "This space", scope() === "space", () => setShared("kanban.scope", "space")))))
     // Questions waiting: the one thing worth reading from across the room. Click: the oldest.
     .when(asks.length > 0, (el) =>
       el.child(
@@ -277,7 +289,6 @@ export function bar() {
           .child(`${asks.length} waiting on you`)))
     .child(div().flex_1())
     .when(live.length > 0, (el) => el.child(tool(p, "prompt-all", "message", `Send a saved prompt to all ${live.length} agents`, () => openPrompts(live, `All agents (${live.length})`))))
-    .child(tool(p, "toggle-board", "board", "Board  ⌘B", () => run("layout.toggle", { id: "board" }), boardShown))
     .child(tool(p, "toggle-rail", "panel", "Side panel: Dev ⌘⇧E · Tasks ⌘⇧J · Riff ⌘⇧Y", () => run("layout.toggle", { id: "rail" }), railShown))
     .child(tool(p, "to-classic", "classic", "Herdr's classic layout  ⌘⇧K", () => run("layout.switch", { name: "main" })))
     .child(div().w(1).h(18).mx(6).bg(p.line))

@@ -56,6 +56,29 @@
       },
       "children": [
         {
+          "id": "side",
+          "type": "column",
+          "size": {
+            "px": 260
+          },
+          "min": 200,
+          "max": 420,
+          "background": "chrome",
+          "children": [
+            {
+              "id": "side-body",
+              "type": "block",
+              "content": {
+                "mod": "kanban",
+                "props": {
+                  "role": "sidebar"
+                }
+              }
+            }
+          ],
+          "hidden": true
+        },
+        {
           "id": "work",
           "type": "column",
           "children": [

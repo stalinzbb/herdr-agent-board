@@ -169,7 +169,7 @@ go back. It makes no Jira calls and changes nothing.
 
 ## Keys
 
-⌘⇧K board ⇄ classic · ⌘B hide the board · ⌘⇧E Dev · ⌘⇧J Tasks · ⌘⇧Y Riff · ⌘⇧U usage stats
+⌘⇧K board ⇄ classic · ⌘B board ⇄ projects sidebar · ⌘⇧E Dev · ⌘⇧J Tasks · ⌘⇧Y Riff · ⌘⇧U usage stats
 
 `herdr-app do kanban.tasks_<tab id>` opens the Tasks panel on a tab (for example `kanban.tasks_dev`),
 and can be bound to a key in `keys.json`. `herdr-app do kanban.riff_open` opens Riff (and never closes it).
