@@ -24,6 +24,17 @@ what its agent is doing, with the focused tab's terminal below and a side rail f
   badge ("Needs your answer" red, "Finished · not seen yet" green), sub-agent and dev chips, and a meta
   line (⎇ branch, panes, "worked Xm · Ym ago" / "waiting for a prompt"). Done cards are 36px rows: hue
   dot, title, project, age, ↺ (back to the board). Empty columns say what would put a card there.
+- **Sidebar** (260px, left, role sidebar, shown instead of the board by the bar's Board | Sidebar switch):
+  one block per project (git repo), a 1px line between them. Header 30px: chevron (folds, remembered),
+  name 13px semibold, then one thing in words: a red dot + "N waiting", else an amber dot + "N working",
+  else "N sessions" only while folded. Under it a 22px caption per checkout (branch icon + branch, 11px
+  dim; "worktree" on the right for a linked one; none outside a repo), then one 26px row per tab, most
+  urgent first: status dot (hollow for a plain terminal), program icon, title, "N panes", age (or how long
+  it has worked). Below a tab's row, a line of 16px pills, each kind its own color: riff (violet #a78bfa,
+  opens it), "asks you" (red), up to two ports like ":3000" (teal #2dd4bf, opens the page) then "+N",
+  device (pink #f472b6), the ticket key (blue #4c9aff). Then only what's alive: the tab's agents when it
+  has several (dot, icon, title, branch if it differs), and up to four running subagents under their
+  agent ("N more running" after that). A plain terminal is named by its folder.
 - **Main tab** below the board: the focused tab's panes, radius 16, with a 34px pane header (mod
   `kanban-pane`) that, for Claude, adds repo · branch · worktree, running subagents, prompt-cache
   countdown, a context bar ("165k / 1M", amber at 70%, red at 90%) and the model name.
@@ -79,9 +90,16 @@ shadows never both, color only for status and data.
   over a day". Working = working (oldest first, so cards don't move). Done = tabs you marked done with ✓
   (`tab.settle`, newest first); opening one, or its agent needing you, brings it back (Herdr unsettles);
   ↺ is `tab.unsettle`. Clicking a card selects its space and tab (with a riff, opens Riff too).
+- Sidebar: a session is a tab. Its ports come from the Dev panel's shared `kanban.dev` (servers whose
+  folder holds, or is inside, one of the tab's folders), its riff from shared `kanban.riffs` (any pane's
+  terminal), its ticket from the Tasks cache: in progress on Today's tabs by each tab's `status_map`, matched
+  by the key appearing in the tab's name or branch (your own tasks: the tab named after the task). Two
+  more views, Turn (by whose turn) and Kind (riffs, questions, ports, devices, sessions, tasks), are in
+  `sidebar.js` behind `MORE_VIEWS = false`; with it on, a Project | Turn | Kind switch sits on top and
+  `kanban.side_<view>` picks one (shared `kanban.side.view`).
 - Worktrees: `git rev-parse --show-toplevel --git-common-dir` per folder (git.js, every 5 s for new folders,
   2 min cache); a common dir that isn't `<top>/.git` is a linked worktree, and the repo is named from it.
-- ⌘B toggles the board, ⌘⇧K switches to Herdr's classic layout and back, ⌘⇧E/⌘⇧J open the rail on
+- ⌘B swaps the board and the sidebar, ⌘⇧K switches to Herdr's classic layout and back, ⌘⇧E/⌘⇧J open the rail on
   Dev/Tasks, ⌘⇧Y on Riff (`kanban.riff_open` only opens; `kanban.riff_<terminal>` goes to that agent's riff), `kanban.tasks_<tab>` opens Tasks on a tab, ⌘⇧U opens usage stats. Esc or × closes the stats window.
 - Dev: start/stop a configured server (runs in a background Herdr terminal named `dev-<id>`), reload
   Metro, boot simulators; a crashed server notifies.
@@ -111,7 +129,7 @@ shadows never both, color only for status and data.
 - `layouts/kanban.json`: column [bar block (role bar) · row [column [board block (role board), main tab
   block] · column [rail-tabs (role railtabs) · stack dev (role rail) / jira (role jira) / riff (role riff)]] · status row
   [status block (role status)]].
-- `mods/kanban` routes by `props().role`: `board.js`, `rail.js`, `railtabs.js`, `jira.js`, `riff.js` (panel), `riffs.js` (bar watcher, shared), `riff.py` (agents' helper), `newmenu.js`
+- `mods/kanban` routes by `props().role`: `board.js`, `rail.js`, `railtabs.js`, `jira.js`, `riff.js` (panel), `riffs.js` (bar watcher, shared), `riff.py` (agents' helper), `sidebar.js` (the sidebar; `tree.js` finds Claude's subagents for it), `newmenu.js`
   (the New menu popup), `status.js` (status bar), `git.js` (repo and worktree per folder), `jstatus.js`
   (status popup), `prompts.js` (popup), `usage.js` (usage data, its compact view, stats window), `ui.js`, `pill.js`.
 - Herdr API: spaces, panes, terminals, agents, run, exec, readTextFile, writeTextFile, watchFolder,
