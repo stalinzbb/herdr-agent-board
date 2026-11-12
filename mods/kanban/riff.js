@@ -650,9 +650,9 @@ export class Riff {
       : changed ? plural(changed, "change")
       : out ? `Live → ${tilde(out)}`
       : null;
-    // With several riffs waiting, each folds to one line (the first stays open); one riff never folds.
+    // Every riff folds to its header (Minimize, or its chevron); with several waiting, only the first starts open.
     const key = `r-${panel.stem}`;
-    const foldable = total > 1 && !panel.answered;
+    const foldable = !panel.answered;
     const open = !foldable || this.isOpen(key, index === 0);
     const question = panel.spec.question ?? panel.stem;
     // Who is asking leads: the project (space), then where in it (tab, branch or folder, pane) and the
@@ -705,7 +705,8 @@ export class Riff {
         .when(!!status, (el) => el.child(div().w_full().min_w(0).px(4).text_size(11.5).text_color(p.faint).child(status)))
         .child(h_flex().px(2).pt(2).gap(6).items_center().justify_end().min_w(0)
           .when(changed > 0 && !panel.answered, (el) => el.child(textBtn(p, `rst-${panel.stem}`, "Reset", (_e, cx) => this.reset(panel, cx))))
-          .when(!panel.answered, (el) => el.child(textBtn(p, `skip-${panel.stem}`, "Skip", (_e, cx) => this.answer(panel, cx, "skipped"))))
+          // Minimize, not skip: the agent keeps waiting, the card folds to its header until you open it.
+          .when(!panel.answered, (el) => el.child(textBtn(p, `min-${panel.stem}`, "Minimize", (_e, cx) => { this.fold[key] = false; try { localStorage.setItem("riff-fold", JSON.stringify(this.fold)); } catch {} cx.notify(); })))
           .child(sendBtn(p, `ans-${panel.stem}`, !panel.answered, !!panel.answered, "Answer", (cx) => this.answer(panel, cx, "answered"))))));
   }
 
