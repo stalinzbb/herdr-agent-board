@@ -2,22 +2,36 @@
 
 ![Herdr agent board](preview.png)
 
-A layout for [Herdr](https://herdr.dev): your agent tabs as a board of whose turn it is, a Dev panel for servers and
-simulators, a Tasks panel (Jira, GitHub, Linear or your own list, one tab each), riffs (an agent asks you a UI question
-with live controls, after [DialKit](https://github.com/joshpuckett/dialkit), and gets your answer back), Claude stats in each
-pane header, and long-term Claude usage and cost stats.
+A layout for [Herdr](https://herdr.dev) for working with several coding agents at once. It shows who is waiting on you,
+what is running where, and lets an agent ask you a visual question and get your answer back.
+
+- **A board of whose turn it is**: every agent tab is a card, in Your turn, Working or Done.
+- **Riffs**: an agent asks a UI question with live controls (sliders, colors, toggles, springs), after
+  [DialKit](https://github.com/joshpuckett/dialkit). You drag, and it sees the numbers.
+- **A projects sidebar**: repos, branches, sessions and what each has going on.
+- **Dev and Tasks panels**: dev servers and simulators; tasks from Jira, GitHub, Linear or your own list.
+- **Color-coded markers**, Claude stats in each pane header, and long-term usage and cost stats.
+
+<p>
+  <img src="share/riff-panel.png" alt="A riff: a question with sliders, a selector and a toggle" width="300">
+  <img src="share/sidebar.png" alt="The projects sidebar with markers for a riff, ports and a task" width="270">
+  <img src="share/tasks-panel.png" alt="The Tasks panel" width="270">
+</p>
+
+Everything in the images is made-up demo data (`herdr-app do kanban.demo`).
 
 ## Install
 
 ```sh
-git clone https://github.com/stalinzbb/herdr-agent-board ~/dg-labs/herdr-agent-board
-~/dg-labs/herdr-agent-board/install.sh
+git clone https://github.com/stalinzbb/herdr-agent-board
+cd herdr-agent-board
+./install.sh
 ```
 
-Then, in Claude Code, add this repo as a plugin and run the setup skill:
+Then, in Claude Code started inside the clone, add this repo as a plugin and run the setup skill:
 
 ```
-/plugin marketplace add ~/dg-labs/herdr-agent-board
+/plugin marketplace add .
 /plugin install herdr-agent-board@herdr-agent-board
 /herdr-agent-board:setup
 ```
@@ -60,9 +74,6 @@ rail tabs and the status bar (hover a marker for the specifics, such as the port
 | Pink | A simulator or device is in use |
 | Blue | Tasks (the Tasks tab's count) |
 | Amber / green | Working / finished (unchanged) |
-
-The broadcast icon in the top bar sends a saved prompt to your agents: with several, you tick which
-ones first (idle, working and waiting-on-you are shown; **Idle only** skips the busy ones), then pick the prompt.
 
 **New** in the top bar starts everything: an agent or a terminal in a new tab, an agent in a new worktree,
 a split of the pane you're in, or a new project from a folder. Herdr calls a project a *space*; a card is a

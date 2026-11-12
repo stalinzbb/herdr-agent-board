@@ -21,6 +21,7 @@ ask you a visual question with live sliders instead of guessing."
 |---|---|
 | `board.png` | Hero image: columns by whose turn it is, a violet riff chip, cyan port chips, pink device chip, the Riff panel at the right |
 | `riff-panel.png` | The riff itself: project + chips, question, sliders, toggle, card section, Answer |
+| `sidebar.png` | The projects sidebar: repos, branches, sessions, colored markers |
 | `tasks-panel.png` | Tasks with the + and agent picker |
 
 ## Thread (5 posts)
@@ -46,8 +47,8 @@ Tasks from Jira, GitHub, Linear or your own list in one panel. + adds one; ▶ s
 a new tab; the arrow starts it with a different agent (Claude, Codex, whatever you have installed).
 
 **5 (CTA)**
-One icon sends a saved prompt to your agents, with a checklist first: tick who gets it, "idle only"
-skips the busy ones. Built on Herdr [link]. Repo: [link once public]. What would you want an agent to
+A projects sidebar lists every repo, branch and session with the same colors, and ⌘⇧M mutes the sounds
+when it gets noisy. Built on Herdr [link]. Repo: [link once public]. What would you want an agent to
 ask you with sliders?
 
 ## More post ideas
@@ -72,7 +73,7 @@ Use `herdr-app do kanban.demo`, a clean space, 1440 px wide, system sound off.
 | 12-16 s | Type "tighter on mobile" in the note, press Answer: "Sent to the agent" |
 | 16-21 s | Board: the card moves from Your turn to Working; port chip :3000 visible, hover shows ports |
 | 21-26 s | Tasks: + a task, click the arrow next to ▶, pick a different agent |
-| 26-30 s | Broadcast icon: tick three agents, "Idle only", pick a prompt, send |
+| 26-30 s | ⌘B to the sidebar: projects, branches, colored markers; tap the speaker to mute |
 
 Tip: lead the tweet with the video (native upload, not a link), keep it under 30 s, add captions, and
 put the repo link in a reply, not the first post.

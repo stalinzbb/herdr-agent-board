@@ -15,6 +15,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, home, appHome, shared, setShared, readTextFile, watchFolder, knownAgents } from "herdr";
 import { ICON, STATUS, pal, dot, progIcon, tilde, ago, iconBtn, USER_CONFIG } from "./ui.js";
 import { gitInfo } from "./git.js";
+import { demo, demoSessions } from "./demo.js";
 import { riffs, goToRiff } from "./riffs.js";
 import { railTo, railShows } from "./railtabs.js";
 import { Tree, model } from "./tree.js";
@@ -70,6 +71,7 @@ const taskFits = (t, tab, branch) =>
 
 // One per tab: what it is, whose turn, and what's attached.
 function sessions(tasks) {
+  if (demo()) return demoSessions();
   const all = panes();
   const terms = terminals();
   const open = riffs();
