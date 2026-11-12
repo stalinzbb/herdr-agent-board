@@ -675,7 +675,6 @@ export class Riff {
       .child(v_flex().px(16).gap(6).min_w(0)
         .child(h_flex().id(`who-${panel.stem}`).gap(6).items_center().min_w(0)
           .when(foldable, (el) => el.cursor_pointer().on_mouse_down("left", (_e, cx) => { this.toggle(key, index === 0); cx.notify(); }))
-          .when(foldable, (el) => el.child(svg(ICON(open ? "chevron-down" : "chevron-right")).size(12).flex_none().text_color(p.muted)))
           .child(dot(STATUS.blocked, 7))
           .child(div().flex_1().min_w(0).truncate().text_size(14).font_medium().child(project))
           .when(!open && changed > 0, (el) => el.child(h_flex().flex_none().gap(4).items_center()
@@ -685,7 +684,9 @@ export class Riff {
           .when(!!agent && agent.address !== focused()?.terminal, (el) => el.child(h_flex().id(`go-${panel.stem}`).flex_none().w(24).h(24).justify_center().items_center().rounded(8).cursor_pointer()
             .hover((s) => s.bg(p.hover))
             .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); goToRiff(agent.address); })
-            .child(svg(ICON("external")).size(13).text_color(p.muted)))))
+            .child(svg(ICON("external")).size(13).text_color(p.muted))))
+          // The caret sits at the right; the whole row toggles.
+          .when(foldable, (el) => el.child(svg(ICON(open ? "chevron-down" : "chevron-right")).size(14).flex_none().text_color(p.muted))))
         .when(open && chips.length > 0, (el) => el.child(h_flex().flex_wrap().gap(4).min_w(0).children(chips.map(chip))))
         .child(div().w_full().min_w(0).text_size(open ? 12.5 : 12).text_color(open ? p.ink : p.faint).when(!open, (el) => el.truncate()).child(question))
         .when(open && !!panel.spec.about, (el) => el.child(div().w_full().min_w(0).text_size(11.5).text_color(p.faint).child(panel.spec.about))))
@@ -705,8 +706,6 @@ export class Riff {
         .when(!!status, (el) => el.child(div().w_full().min_w(0).px(4).text_size(11.5).text_color(p.faint).child(status)))
         .child(h_flex().px(2).pt(2).gap(6).items_center().justify_end().min_w(0)
           .when(changed > 0 && !panel.answered, (el) => el.child(textBtn(p, `rst-${panel.stem}`, "Reset", (_e, cx) => this.reset(panel, cx))))
-          // Minimize, not skip: the agent keeps waiting, the card folds to its header until you open it.
-          .when(!panel.answered, (el) => el.child(textBtn(p, `min-${panel.stem}`, "Minimize", (_e, cx) => { this.fold[key] = false; try { localStorage.setItem("riff-fold", JSON.stringify(this.fold)); } catch {} cx.notify(); })))
           .child(sendBtn(p, `ans-${panel.stem}`, !panel.answered, !!panel.answered, "Answer", (cx) => this.answer(panel, cx, "answered"))))));
   }
 
