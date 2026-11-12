@@ -228,6 +228,7 @@ function segment(p, id, label, on, onPress) {
     .text_color(on ? p.ink : p.faint)
     .when(on, (el) => el.bg(p.raised))
     .hover((s) => s.text_color(p.ink))
+    .active((s) => s.opacity(0.8))
     .on_mouse_down("left", (_e, cx) => {
       cx.stop_propagation();
       onPress();
@@ -267,9 +268,8 @@ export function bar() {
     .child(image("mods/kanban/herdr.png").w(22).h(22).flex_none().mr(6))
     .child(
       h_flex().gap(2).p(2).rounded(10).bg(p.ground).mr(6)
-        .tooltip("Kanban board or projects sidebar  ⌘B")
-        .child(segment(p, "mode-board", "Board", !sideShown, () => setMode("board")))
-        .child(segment(p, "mode-side", "Sidebar", sideShown, () => setMode("sidebar"))))
+        .child(segment(p, "mode-board", "Board", !sideShown, () => setMode("board")).tooltip("Kanban board  ⌘B"))
+        .child(segment(p, "mode-side", "Sidebar", sideShown, () => setMode("sidebar")).tooltip("Projects, branches, agents  ⌘B")))
     // Which spaces the board shows: a segmented control, the space's own name when it's one.
     .when(!sideShown, (el) => el.child(
       h_flex().gap(2).p(2).rounded(10).bg(p.ground)

@@ -137,8 +137,9 @@ function agentRows(p, a, depth, wide, branch) {
     row(p, `ag-${a.pane.pane ?? a.tab.id}`, depth, () => openAgent(a))
       .when(a.current, (el) => el.bg(p.raised))
       .child(
-        div().id(`agf-${a.pane.pane ?? a.tab.id}`).flex_none().w(12).h(12).flex().items_center().justify_center()
-          .when(a.subs.length > 0, (el) => el.child(svg(ICON("chevron-down")).size(11).text_color(p.faint).when(fold, (x) => x.opacity(0.6)))
+        div().id(`agf-${a.pane.pane ?? a.tab.id}`).flex_none().w(20).h(22).ml(-4).mr(-4).flex().items_center().justify_center().rounded(6)
+          .when(a.subs.length > 0, (el) => el.child(svg(ICON(fold ? "chevron-right" : "chevron-down")).size(12).text_color(p.muted)).cursor_pointer().hover((s) => s.bg(p.hover))
+            .tooltip(fold ? "Show subagents" : "Hide subagents")
             .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); flip(); cx.notify(); })))
       .child(a.agent ? dot(COLOR(a.status), 7) : div().w(7).h(7).flex_none())
       .child(progIcon(a.pane.program, 13, p.muted))
@@ -156,7 +157,7 @@ function projectBlock(p, proj, wide) {
   const n = proj.checkouts.reduce((t, c) => t + c.agents.length, 0);
   const rows = [
     row(p, `pr-${proj.name}`, 0, (cx) => { toggle(key); cx.notify(); }).h(30)
-      .child(svg(ICON("chevron-down")).size(12).text_color(p.faint).when(fold, (x) => x.opacity(0.5)))
+      .child(svg(ICON(fold ? "chevron-right" : "chevron-down")).size(12).flex_none().text_color(p.muted))
       .child(svg(ICON("folder")).size(14).flex_none().text_color(p.muted))
       .child(div().min_w(0).truncate().text_size(13).font_semibold().text_color(p.ink).child(proj.name))
       .child(div().flex_1())
@@ -203,7 +204,7 @@ export class Tree {
   render() {
     const p = pal();
     const projects = model();
-    const empty = div().p(16).text_size(12.5).text_color(p.faint).child("No agents yet. New ▾ starts one.");
+    const empty = div().p(12).text_size(12.5).text_color(p.faint).child("Nothing running yet. Start an agent with New ▾ and it shows up here, under its project.");
     if (this.wide)
       return div().size_full().bg(p.ground).p(8).overflow_y_scroll().child(
         h_flex().w_full().gap(8).flex_wrap().items_start()
