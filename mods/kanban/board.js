@@ -11,10 +11,11 @@
 
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgentOrder, openOverlay, home, window, layout } from "herdr";
-import { ICON, STATUS, pal, ago, dot, progIcon, iconBtn, tilde } from "./ui.js";
+import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgentOrder, openOverlay, window, layout } from "herdr";
+import { ICON, STATUS, KIND, tint, pal, ago, dot, progIcon, iconBtn, tilde } from "./ui.js";
+import { devFor } from "./kinds.js";
 import { railTo } from "./railtabs.js";
-import { riffs, goToRiff } from "./riffs.js";
+import { riffs, goToRiff, askerLabel } from "./riffs.js";
 import { gitInfo } from "./git.js";
 import { demo, demoCards } from "./demo.js";
 
@@ -76,14 +77,7 @@ function dur(ms) {
 // The running servers (and, through them, simulators) whose folder this card's terminals are in.
 function devUse(c) {
   if (c.demo_dev) return c.demo_dev;
-  const dev = shared("kanban.dev");
-  if (!dev) return { servers: [], others: [], devices: false };
-  const h = home();
-  const near = (a, b) => a && b && a !== h && b !== h && (a === b || a.startsWith(b + "/") || b.startsWith(a + "/"));
-  const hits = (folder) => c.folders.some((f) => near(f, folder));
-  const servers = (dev.servers ?? []).filter((s) => hits(s.folder));
-  const others = (dev.others ?? []).filter((o) => hits(o.cwd));
-  return { servers, others, devices: servers.some((s) => s.devices), sims: dev.sims ?? [], android: dev.android ?? [] };
+  return devFor(c.folders);
 }
 
 function devChips(p, c) {
@@ -110,13 +104,13 @@ function devChips(p, c) {
       .child(label);
   const out = [];
   for (const s of u.servers)
-    out.push(chip(`dv-${c.tab.id}-${s.id}`, "server", s.port ? `${s.name} :${s.port}` : s.name, STATUS.done, () =>
+    out.push(chip(`dv-${c.tab.id}-${s.id}`, "server", s.port ? `${s.name} :${s.port}` : s.name, KIND.port.color, () =>
       s.term ? run("terminal.peek", { terminal: s.term }) : exec("open", [s.url ?? `http://localhost:${s.port}`])));
   for (const o of u.others)
-    out.push(chip(`dvo-${c.tab.id}-${o.port}`, "server", `${o.cmd} :${o.port}`, STATUS.done, () => exec("open", [`http://localhost:${o.port}`])));
+    out.push(chip(`dvo-${c.tab.id}-${o.port}`, "server", `${o.cmd} :${o.port}`, KIND.port.color, () => exec("open", [`http://localhost:${o.port}`])));
   if (u.devices) {
-    for (const sim of u.sims) out.push(chip(`dvs-${c.tab.id}-${sim.name}`, "phone", sim.name, STATUS.done, () => exec("open", ["-a", "Simulator"])));
-    for (const a of u.android) out.push(chip(`dva-${c.tab.id}-${a}`, "phone", a.replace(/^emulator-/, "Android "), STATUS.done, () => {}));
+    for (const sim of u.sims) out.push(chip(`dvs-${c.tab.id}-${sim.name}`, "phone", sim.name, KIND.device.color, () => exec("open", ["-a", "Simulator"])));
+    for (const a of u.android) out.push(chip(`dva-${c.tab.id}-${a}`, "phone", a.replace(/^emulator-/, "Android "), KIND.device.color, () => {}));
   }
   return out;
 }
@@ -175,8 +169,12 @@ const urgent = (list) => list.filter((c) => c.column === "you" && c.turn === "as
 // No change time means nothing changed since Herdr started: unknown, so not folded.
 const quiet = (c) => c.turn !== "ask" && c.turn !== "new" && !!c.tab.changed_at && Date.now() - c.tab.changed_at > DAY;
 
-export function openPrompts(targets, title) {
-  openOverlay({ mod: "kanban", props: { role: "prompts", targets, title }, kind: "popup", width: 300, height: 340 });
+// `pick`: several agents are shown first, ticked, so you choose who gets it before you pick the prompt.
+export function openPrompts(targets, title, pick = false) {
+  const who = pick
+    ? agents().filter((a) => targets.includes(a.address)).map((a) => ({ address: a.address, label: askerLabel(a), status: a.status }))
+    : [];
+  openOverlay({ mod: "kanban", props: { role: "prompts", targets, title, pick, who }, kind: "popup", width: 340, height: pick ? Math.min(640, 340 + who.length * 34) : 340 });
 }
 
 export function openNew() {
@@ -288,7 +286,7 @@ export function bar() {
           .child(dot(STATUS.blocked, 6))
           .child(`${asks.length} waiting on you`)))
     .child(div().flex_1())
-    .when(live.length > 0, (el) => el.child(tool(p, "prompt-all", "message", `Send a saved prompt to all ${live.length} agents`, () => openPrompts(live, `All agents (${live.length})`))))
+    .when(live.length > 0, (el) => el.child(tool(p, "prompt-all", "broadcast", live.length > 1 ? `Send a saved prompt to your agents: choose which of the ${live.length}` : "Send a saved prompt to your agent", () => openPrompts(live, `All agents (${live.length})`, live.length > 1))))
     .child(tool(p, "toggle-rail", "panel", "Side panel: Dev ⌘⇧E · Tasks ⌘⇧J · Riff ⌘⇧Y", () => run("layout.toggle", { id: "rail" }), railShown))
     .child(tool(p, "to-classic", "classic", "Herdr's classic layout  ⌘⇧K", () => run("layout.switch", { name: "main" })))
     .child(div().w(1).h(18).mx(6).bg(p.line))
@@ -449,16 +447,16 @@ function card(p, c) {
           .gap(6)
           .items_center()
           .rounded(9)
-          .bg("#e5566f1f")
+          .bg(tint(KIND.riff.color, "1f"))
           .text_size(12)
-          .text_color("#f2a0ae")
+          .text_color("#c4b5fd")
           .cursor_pointer()
-          .hover((s) => s.bg("#e5566f33"))
+          .hover((s) => s.bg(tint(KIND.riff.color, "33")))
           .on_mouse_down("left", (_e, cx) => {
             cx.stop_propagation();
             if (!c.riff.demo) goToRiff(c.riff.terminal);
           })
-          .child(dot(STATUS.blocked, 6))
+          .child(dot(KIND.riff.color, 6))
           .child(div().flex_none().font_medium().child("Your call"))
           .child(div().min_w(0).truncate().child(c.riff.question))))
     .when(!c.riff && c.column === "you" && c.turn === "ask", (el) => el.child(h_flex().child(badge("Needs your answer", "#f2a0ae", "#e5566f1f"))))

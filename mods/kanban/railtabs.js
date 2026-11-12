@@ -3,7 +3,7 @@
 import { div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { layout, run, shared } from "herdr";
-import { pal } from "./ui.js";
+import { pal, KIND, tint } from "./ui.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -30,7 +30,7 @@ export function railtabs() {
   const p = pal();
   const cur = find(layout(), "rail-body")?.active ?? "dev";
   const count = shared("kanban.jira.count") ?? 0;
-  const tab = (id, label, badge) =>
+  const tab = (id, label, badge, kind = "ask") =>
     h_flex()
       .id(`rt-${id}`)
       .flex_1()
@@ -46,7 +46,7 @@ export function railtabs() {
       .hover((s) => s.text_color(p.ink))
       .on_mouse_down("left", () => run("layout.select", { stack: "rail-body", child: id }))
       .child(label)
-      .when(badge > 0, (el) => el.child(div().px(5).rounded(9).bg("#e5566f26").text_color("#f2a0ae").text_size(11).font_medium().child(String(badge))));
+      .when(badge > 0, (el) => el.child(div().px(5).rounded(9).bg(tint(KIND[kind].color)).text_color(KIND[kind].color).text_size(11).font_medium().child(String(badge))));
   return h_flex()
     .size_full()
     .px(8)
@@ -54,6 +54,6 @@ export function railtabs() {
     .bg(p.col)
     .child(h_flex().w_full().p(2).gap(2).rounded(16).bg(p.ground)
       .child(tab("dev", "Dev"))
-      .child(tab("jira", shared("kanban.tasks.name") || "Tasks", count))
-      .child(tab("riff", "Riff", (shared("kanban.riffs") ?? []).length)));
+      .child(tab("jira", shared("kanban.tasks.name") || "Tasks", count, "task"))
+      .child(tab("riff", "Riff", (shared("kanban.riffs") ?? []).length, "riff")));
 }

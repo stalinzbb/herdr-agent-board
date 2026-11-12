@@ -4,7 +4,7 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, terminals, run, notify, appHome, shared, setShared } from "herdr";
-import { ICON, STATUS, pal, dot, iconBtn, expand, tilde, readConfig, editConfig } from "./ui.js";
+import { ICON, STATUS, KIND, pal, dot, iconBtn, expand, tilde, readConfig, editConfig } from "./ui.js";
 
 const DEV_COMMANDS = new Set(["node", "bun", "deno", "python", "python3", "Python", "ruby", "java", "php", "go", "vite", "next-serv", "esbuild"]);
 const termName = (id) => `dev-${id}`.toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 32);
@@ -276,17 +276,17 @@ export class Rail {
     const running = [
       ...live.map(serverRow),
       ...others.map((o) =>
-        row(p, `port-${o.port}`, STATUS.done, `:${o.port}  ${o.cmd}`, tilde(o.cwd) ?? `pid ${o.pid}`, [
+        row(p, `port-${o.port}`, KIND.port.color, `:${o.port}  ${o.cmd}`, tilde(o.cwd) ?? `pid ${o.pid}`, [
           iconBtn(`open-port-${o.port}`, "external", () => exec("open", [`http://localhost:${o.port}`]), p),
         ])),
       ...booted.map((s) =>
-        row(p, `sim-${s.udid}`, STATUS.done, s.name, `${s.os} · Simulator`, [
+        row(p, `sim-${s.udid}`, KIND.device.color, s.name, `${s.os} · Simulator`, [
           iconBtn(`simapp-${s.udid}`, "external", () => exec("open", ["-a", "Simulator"]), p),
           iconBtn(`simoff-${s.udid}`, this.busy.has(s.udid) ? "spinner" : "power", (_e, cx) => this.simAction(s, cx), p),
         ])),
-      ...online.map((d, i) => row(p, `phone-on-${i}`, STATUS.done, d.name, `${d.os} · Connected`, [])),
+      ...online.map((d, i) => row(p, `phone-on-${i}`, KIND.device.color, d.name, `${d.os} · Connected`, [])),
       ...this.droid.running.map((serial) =>
-        row(p, `adb-${serial}`, STATUS.done, serial, "Android emulator", [
+        row(p, `adb-${serial}`, KIND.device.color, serial, "Android emulator", [
           iconBtn(`adboff-${serial}`, "power", () => exec(this.droid.adb, ["-s", serial, "emu", "kill"]), p),
         ])),
     ];

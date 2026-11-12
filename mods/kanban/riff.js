@@ -12,8 +12,8 @@
 
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, SliderState, Slider, SliderTrack, SliderIndicator, SliderThumb } from "gpui-base";
-import { exec, home, readTextFile, writeTextFile, watchFolder, terminals, agents, focused, notify, settings } from "herdr";
-import { ICON, STATUS, pal, tilde, dot } from "./ui.js";
+import { exec, home, readTextFile, writeTextFile, watchFolder, terminals, agents, panes, focused, notify, settings } from "herdr";
+import { ICON, STATUS, KIND, pal, tilde, dot, button } from "./ui.js";
 import { demo, DEMO_RIFF } from "./demo.js";
 import { RIFF_DIR, isSpec, stemOf, riffs, askerLabel, paneLabel, goToRiff } from "./riffs.js";
 
@@ -219,7 +219,7 @@ function makeStates(panel, self) {
     }
   }
   if (!panel.note) {
-    panel.note = InputState.new({ placeholder: "Anything else? (optional)" });
+    panel.note = InputState.new({ placeholder: "Add a note" });
     panel.note.on("change", (_e, cx) => cx.notify());
     panel.note.on("submit", (_e, cx) => self.answer(panel, cx, "answered"));
     focusable(panel.note, "__note");
@@ -322,7 +322,7 @@ export class Riff {
     const stems = ls.stdout.split("\n").filter(isSpec).map(stemOf);
     this.broken = Object.fromEntries(Object.entries(this.broken ?? {}).filter(([s]) => stems.includes(s)));
     for (const stem of [...this.panels.keys()]) {
-      if (!stems.includes(stem)) {
+      if (!stems.includes(stem) && !this.panels.get(stem).answered) {
         // Closed (answered, or by the agent): forget what we wrote, so a new riff with this id writes afresh.
         const gone = this.panels.get(stem);
         if (!gone.pending) this.retired.push([gone, false]);
@@ -456,26 +456,46 @@ export class Riff {
       return;
     }
     panel.answered = status;
+    panel.failed = null;
+    panel.delivery = "Sending…";
     cx.notify();
     const file = (s) => `${RIFF_DIR()}/${panel.stem}${s}`;
+    // A send that didn't go through stays on the card, with why and a way to try again.
+    const fail = (msg, cx) => {
+      panel.answered = null;
+      panel.delivery = null;
+      panel.failed = { msg, status, action };
+      cx.notify();
+    };
     const ans = { status, question: q, action: action?.path ?? null, values: nested(panel), changed: changedMap(panel), note };
     cx.spawn(async (cx) => {
       const ok = await this.put(file(".answer.json"), JSON.stringify(ans, null, 2) + "\n");
-      if (!ok) { panel.answered = null; cx.notify(); return; }
-      await new Promise((r) => cx.timer.after(3000, r));
-      if (!(await readTextFile(file(".answer.json")).catch(() => null))) return; // riff.py took it
-      // Skipping with nothing to say needs no message.
-      if (status === "answered" || note) {
+      if (!ok) return fail(`Couldn't write the answer to ${tilde(file(".answer.json"))}.`, cx);
+      // The waiting riff.py takes the file within a moment; check every half second, up to 3.
+      let taken = false;
+      for (let i = 0; i < 6 && !taken; i++) {
+        await new Promise((r) => cx.timer.after(500, r));
+        taken = !(await readTextFile(file(".answer.json")).catch(() => null));
+      }
+      if (taken) {
+        panel.delivery = "Sent to the agent";
+        cx.notify();
+      } else if (status === "answered" || note) {
+        // Nobody picked it up: the agent stopped waiting, so type it into its terminal.
         const r = await exec("hc", ["send", panel.spec.terminal, this.message(panel, status, note, action)]).catch((e) => ({ code: 1, stderr: String(e) }));
         if (r.code !== 0) {
-          notify({ title: "Couldn't reach the agent", body: (r.stderr || r.stdout || "").trim().slice(0, 200) || "Is it waiting on you?", level: "warning" });
           await exec("rm", ["-f", file(".answer.json")]).catch(() => null);
           delete this.written[file(".answer.json")];
-          panel.answered = null;
-          cx.notify();
-          return;
+          return fail(`Couldn't reach the agent: ${(r.stderr || r.stdout || "").trim().slice(0, 160) || "is it still running?"}`, cx);
         }
+        panel.delivery = "Typed into the agent's terminal";
+        cx.notify();
+      } else {
+        // Skipping with nothing to say needs no message.
+        panel.delivery = "Skipped";
+        cx.notify();
       }
+      await new Promise((r) => cx.timer.after(1200, r));
       this.close(panel, cx);
     });
   }
@@ -525,6 +545,7 @@ export class Riff {
     // from here (the answer still goes to the agent that asked); "<who> asks" takes you there.
     const full = here.length ? [] : elsewhere.map((r) => this.panels.get(r.stem)).filter(Boolean).sort((a, b) => b.seen - a.seen);
     const rows = elsewhere.filter((r) => !full.some((x) => x.stem === r.stem));
+    const total = here.length + full.length;
     return v_flex()
       .id("riff")
       .size_full()
@@ -535,10 +556,20 @@ export class Riff {
       .on_hover((_h, cx) => this.makePending(cx))
       .on_mouse_move((_e, cx) => { if ([...this.panels.values()].some((x) => x.pending) || this.retired.length) this.makePending(cx); })
       .on_mouse_down("left", (_e, cx) => this.makePending(cx))
-      .children(here.map((panel) => this.riffView(p, panel)))
+      .when(total > 1, (el) => {
+        const all = [...here, ...full];
+        const anyOpen = all.some((x, i) => this.isOpen(`r-${x.stem}`, i === 0));
+        return el.child(h_flex().px(12).pt(8).justify_end()
+          .child(textBtn(p, "riff-fold-all", anyOpen ? "Collapse all" : "Expand all", (_e, cx) => {
+            all.forEach((x) => { this.isOpen(`r-${x.stem}`, true); this.fold[`r-${x.stem}`] = !anyOpen; });
+            try { localStorage.setItem("riff-fold", JSON.stringify(this.fold)); } catch {}
+            cx.notify();
+          })));
+      })
+      .children(here.map((panel, i) => this.riffView(p, panel, i, total)))
       .when(full.length > 0, (el) => el
         .child(div().px(16).pt(12).text_size(12).font_medium().text_color(p.muted).child(`Nothing from this tab · waiting on you elsewhere · ${full.length}`))
-        .children(full.map((panel) => this.riffView(p, panel))))
+        .children(full.map((panel, i) => this.riffView(p, panel, i, total))))
       .when(rows.length > 0, (el) => el.child(this.waitingView(p, rows, full.length > 0 || here.length > 0)))
       .when(!here.length, (el) => el.child(this.emptyView(p, elsewhere.length > 0)))
       .when(!!this.scanError, (el) => el.child(div().px(16).pt(8).text_size(11.5).text_color(STATUS.blocked).child(`Riff couldn't read its folder: ${this.scanError}`)));
@@ -559,11 +590,7 @@ export class Riff {
   emptyView(p, compact) {
     const targets = this.askTargets();
     const open = !compact || this.askOpen;
-    const btn = (id, label, onPress, primary) => div().id(id).flex_none().h(26).px(10).flex().items_center().rounded(8).text_size(12).font_medium()
-      .bg(primary ? p.ink : p.raised).text_color(primary ? p.ground : p.muted)
-      .cursor_pointer().hover((s) => s.opacity(0.9)).active((s) => s.opacity(0.75))
-      .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); onPress(cx); })
-      .child(label);
+    const btn = (id, label, onPress, primary) => button(p, id, label, (_e, cx) => onPress(cx), { variant: primary ? "primary" : "secondary" });
     const ask = (a) => (cx) => cx.spawn(async () => {
       const r = await exec("hc", ["send", a.address, SAMPLE]).catch((e) => ({ code: 1, stderr: String(e) }));
       notify(r.code === 0 ? { title: "Asked for a riff", body: askerLabel(a), level: "success", timeout: 2000 } : { title: "Couldn't reach the agent", body: (r.stderr || "").trim().slice(0, 160), level: "warning" });
@@ -571,16 +598,18 @@ export class Riff {
     // On an agent's pane: "Ask this agent". On another pane: a button per agent in the tab, by name.
     const onAgent = targets.length === 1 && targets[0].address === (focused()?.terminal ?? focused()?.agent);
     const askLabel = (a) => (onAgent ? "Ask this agent" : `Ask ${paneLabel(a) ?? askerLabel(a)}`);
-    const title = targets.length > 1 ? "No questions from the agents in this tab" : "No questions from this agent";
-    return v_flex().flex_none().mx(12).mt(12).p(8).gap(8).rounded(16).bg(p.card)
+    const title = targets.length > 1 ? "No questions in this tab" : "No questions from this agent";
+    return v_flex().flex_none().min_w(0).mx(12).mt(12).p(8).gap(8).rounded(16).bg(p.card)
       .child(h_flex().id("riff-ask-head").px(4).pt(2).gap(6).items_center()
         .when(compact, (el) => el.cursor_pointer().on_mouse_down("left", (_e, cx) => { this.askOpen = !this.askOpen; cx.notify(); }))
-        .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(p.muted).child(compact ? "Ask an agent here for a riff" : title))
-        .when(compact, (el) => el.child(div().text_size(10).text_color(p.faint).child(open ? "▾" : "▸"))))
+        .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(p.muted).child(compact ? "Ask an agent for a riff" : title))
+        .when(compact, (el) => el.child(svg(ICON(open ? "chevron-down" : "chevron-right")).size(12).flex_none().text_color(p.faint))))
+      .when(open && !!this.promptOpen, (el) => el
+        .child(div().w_full().min_w(0).px(10).py(8).rounded(8).bg(p.ground).text_size(11.5).text_color(p.muted).child(SAMPLE)))
       .when(open, (el) => el
-        .child(div().px(10).py(8).rounded(8).bg(p.ground).text_size(12.5).text_color(p.ink).child(SAMPLE))
         .child(h_flex().gap(6).justify_end().flex_wrap()
-          .child(btn("riff-copy", this.copied ? "Copied" : "Copy", (cx) => {
+          .child(textBtn(p, "riff-prompt", this.promptOpen ? "Hide prompt" : "Show prompt", (_e, cx) => { this.promptOpen = !this.promptOpen; cx.notify(); }))
+          .child(btn("riff-copy", this.copied ? "Copied" : "Copy prompt", (cx) => {
             cx.spawn(async (cx) => {
               await exec("/bin/sh", ["-c", 'printf %s "$1" | pbcopy', "sh", SAMPLE]).catch(() => null);
               this.copied = true; cx.notify();
@@ -601,70 +630,103 @@ export class Riff {
         return h_flex().id(`wait-${r.stem}`).flex_none().mx(4).px(12).py(6).gap(8).items_center().rounded(10).cursor_pointer()
           .hover((s) => s.bg(p.hover))
           .on_mouse_down("left", () => goToRiff(r.terminal))
-          .child(dot(STATUS.blocked, 7))
+          .child(dot(KIND.riff.color, 7))
           .child(v_flex().flex_1().min_w(0)
-            .child(div().truncate().text_size(12.5).child(r.question))
+            .child(div().min_w(0).truncate().text_size(12.5).child(r.question))
             .child(div().truncate().text_size(11.5).text_color(p.faint).child(askerLabel(a)))
-            .when(!!this.broken?.[r.stem], (el) => el.child(div().truncate().text_size(11.5).text_color(STATUS.blocked).child(`Couldn't show it: ${this.broken[r.stem]}`))));
+            .when(!!this.broken?.[r.stem], (el) => el.child(div().w_full().min_w(0).text_size(11.5).text_color(STATUS.blocked).child(`Couldn't show it: ${this.broken[r.stem]}`))));
       }));
   }
 
-  riffView(p, panel) {
+  riffView(p, panel, index = 0, total = 1) {
     const agent = agents().find((a) => a.address === panel.spec.terminal);
     const changed = changesOf(panel).length;
     const out = this.outputPath(panel);
-    const who = panel.stem === "demo" ? "Product page: new image gallery" : askerLabel(agent);
-    const status = panel.answered ? (panel.answered === "skipped" ? "Skipped" : "Sent")
-      : changed ? `${plural(changed, "change")} · Enter answers`
+    const status = panel.answered ? (panel.delivery ?? "Sending…")
+      : changed ? plural(changed, "change")
       : out ? `Live → ${tilde(out)}`
-      : "Answering as is keeps the agent's values";
-    // Card 16 = 8 padding + 8 on every bar inside it.
+      : null;
+    // Every riff folds to its header (Minimize, or its chevron); with several waiting, only the first starts open.
+    const key = `r-${panel.stem}`;
+    const foldable = !panel.answered;
+    const open = !foldable || this.isOpen(key, index === 0);
+    const question = panel.spec.question ?? panel.stem;
+    // Who is asking leads: the project (space), then where in it (tab, branch or folder, pane) and the
+    // session id, so two agents in one project can't be mixed up. The question is the body, not the title.
+    const isDemo = panel.stem.startsWith("demo");
+    const pane = panes().find((q) => q.terminal === (agent?.address ?? panel.spec.terminal)) ?? null;
+    // An agent Herdr can't place (another space, or gone from the list) is still named by its folder.
+    const folder = (pane?.cwd ?? panel.spec.cwd ?? "").replace(/\/+$/, "").split("/").pop();
+    const project = isDemo ? "acme-store" : agent?.space_name ?? (folder || "Unknown agent");
+    const tabName = agent?.tab_name && !/^\d+$/.test(agent.tab_name) && agent.tab_name !== project ? agent.tab_name : null;
+    const where = pane?.branch || (pane?.cwd ? pane.cwd.replace(/\/+$/, "").split("/").pop() : null);
+    const mates = agent ? agents().filter((x) => x.tab === agent.tab) : [];
+    const chips = isDemo
+      ? [{ t: "feat/gallery", icon: "branch" }, { t: "pane 2" }, { t: "t1d5", mono: true }]
+      : [tabName && { t: tabName }, where && where !== project && { t: where, icon: "branch" }, mates.length > 1 && { t: `pane ${mates.findIndex((x) => x.address === agent.address) + 1}` }, (agent?.address ?? panel.spec.terminal) && { t: agent?.address ?? panel.spec.terminal, mono: true }].filter(Boolean);
+    const chip = (c, i) => h_flex().id(`chip-${panel.stem}-${i}`).flex_shrink(1).min_w(0).max_w(150).h(20).px(6).gap(4).items_center().rounded(6).bg(p.raised)
+      .when(!!c.icon, (el) => el.child(svg(ICON(c.icon)).size(11).flex_none().text_color(p.faint)))
+      .child(div().min_w(0).truncate().text_size(11).text_color(p.muted).when(!!c.mono, (el) => el.font_family("Geist Mono")).child(c.t));
     return v_flex()
       .flex_none()
       .mt(12)
-      .child(v_flex().px(16).gap(2)
-        // A riff from another pane in this tab: clicking who asks takes you to that pane.
-        .child(h_flex().id(`who-${panel.stem}`).gap(6).items_center()
-          .when(!!agent && agent.address !== focused()?.terminal, (el) => el.cursor_pointer()
-            .hover((s) => s.opacity(0.8))
-            .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); goToRiff(agent.address); }))
-          .child(dot(STATUS.blocked, 6))
-          .child(div().truncate().text_size(11.5).text_color(p.faint).child(`${who} asks`)))
-        .child(div().text_size(14).font_medium().child(panel.spec.question ?? panel.stem))
-        .when(!!panel.spec.about, (el) => el.child(div().truncate().text_size(11.5).text_color(p.faint).child(panel.spec.about))))
-      .when(!!panel.error, (el) => el.child(div().px(16).pt(4).text_size(12).text_color(STATUS.blocked).child(panel.error)))
+      .child(v_flex().px(16).gap(6).min_w(0)
+        .child(h_flex().id(`who-${panel.stem}`).gap(6).items_center().min_w(0)
+          .when(foldable, (el) => el.cursor_pointer().on_mouse_down("left", (_e, cx) => { this.toggle(key, index === 0); cx.notify(); }))
+          .child(dot(KIND.riff.color, 7))
+          .child(div().flex_1().min_w(0).truncate().text_size(14).font_medium().child(project))
+          .when(!open && changed > 0, (el) => el.child(h_flex().flex_none().gap(4).items_center()
+            .child(div().w(5).h(5).rounded_full().bg(p.accent))
+            .child(div().text_size(11).text_color(p.muted).child(String(changed)))))
+          // A riff from another pane: take me there.
+          .when(!!agent && agent.address !== focused()?.terminal, (el) => el.child(h_flex().id(`go-${panel.stem}`).flex_none().w(28).h(28).justify_center().items_center().rounded(8).cursor_pointer()
+            .hover((s) => s.bg(p.hover))
+            .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); goToRiff(agent.address); })
+            .child(svg(ICON("external")).size(13).text_color(p.muted))))
+          // The caret sits at the right; the whole row toggles.
+          .when(foldable, (el) => el.child(svg(ICON(open ? "chevron-down" : "chevron-right")).size(14).flex_none().text_color(p.muted))))
+        .when(open && chips.length > 0, (el) => el.child(h_flex().flex_wrap().gap(4).min_w(0).children(chips.map(chip))))
+        .child(div().w_full().min_w(0).text_size(open ? 12.5 : 12).text_color(open ? p.ink : p.faint).when(!open, (el) => el.truncate()).child(question))
+        .when(open && !!panel.spec.about, (el) => el.child(div().w_full().min_w(0).text_size(11.5).text_color(p.faint).child(panel.spec.about))))
+      .when(open && !!panel.error, (el) => el.child(div().w_full().min_w(0).px(16).pt(4).text_size(12).text_color(STATUS.blocked).child(panel.error)))
       // No controls yet (made on your first pointer move here): its values as text.
-      .when(panel.pending || panel.broken, (el) => el.child(v_flex().mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
-        .children(panel.leaves.map((l) => h_flex().h(28).pl(10).pr(10).gap(8).items_center().rounded(8).bg(p.ground)
-          .child(div().text_size(12).text_color(p.muted).child(l.label))
-          .child(div().flex_1())
-          .child(div().text_size(12).font_family("Geist Mono").text_color(p.ink).child(fmt(panel.values[l.path])))))
-        .when(!panel.broken, (el) => el.child(div().px(4).pt(2).text_size(11.5).text_color(p.faint).child("Point here to change these")))))
-      .when(!panel.pending && !panel.broken, (el) => el.child(v_flex().mx(12).mt(8).p(8).gap(4).rounded(16).bg(p.card)
+      .when(open && (panel.pending || panel.broken), (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(10).gap(6).rounded(16).bg(p.card)
+        .children(panel.leaves.map((l) => h_flex().h(32).pl(12).pr(12).gap(8).items_center().rounded(10).bg(p.ground)
+          .child(div().flex_1().min_w(0).truncate().text_size(12).text_color(p.muted).child(l.label))
+          .child(div().flex_shrink(1).min_w(0).max_w(140).truncate().text_size(12).font_family("Geist Mono").text_color(p.ink).child(fmt(panel.values[l.path])))))))
+      .when(open && !panel.pending && !panel.broken, (el) => el.child(v_flex().min_w(0).mx(12).mt(8).p(10).gap(6).rounded(16).bg(p.card)
         .children(this.nodes(p, panel, panel.nodes))
-        .child(div().h(4))
-        .child(composer(p, `ans-${panel.stem}`, panel.note, panel.focus === "__note", !panel.answered, !!panel.answered, "Answer", (cx) => this.answer(panel, cx, "answered")))
-        .child(h_flex().px(4).pt(2).gap(8).items_center()
-          .child(div().flex_1().min_w(0).truncate().text_size(11.5).text_color(p.faint).child(status))
+        .child(div().h(2))
+        .child(noteField(p, panel.note, panel.focus === "__note"))
+        .when(!!panel.failed, (el) => el.child(v_flex().min_w(0).gap(6).p(8).rounded(8).bg(p.ground)
+          .child(div().w_full().min_w(0).text_size(11.5).text_color(STATUS.blocked).child(panel.failed.msg))
+          .child(h_flex().justify_end().child(textBtn(p, `retry-${panel.stem}`, "Try again", (_e, cx) => this.answer(panel, cx, panel.failed.status, panel.failed.action))))))
+        .when(!!status, (el) => el.child(div().w_full().min_w(0).px(4).text_size(11.5).text_color(p.faint).child(status)))
+        .child(h_flex().px(2).pt(2).gap(6).items_center().justify_end().min_w(0)
           .when(changed > 0 && !panel.answered, (el) => el.child(textBtn(p, `rst-${panel.stem}`, "Reset", (_e, cx) => this.reset(panel, cx))))
-          .when(!panel.answered, (el) => el.child(textBtn(p, `skip-${panel.stem}`, "Skip", (_e, cx) => this.answer(panel, cx, "skipped")))))));
+          .child(sendBtn(p, `ans-${panel.stem}`, !panel.answered, !!panel.answered, "Answer", (cx) => this.answer(panel, cx, "answered"))))));
   }
 
-  nodes(p, panel, nodes) {
+  nodes(p, panel, nodes, depth = 0) {
     return nodes.map((n) => {
-      if (n.kind === "folder" || n.kind === "group") {
-        const key = `f-${panel.stem}-${n.path}`;
-        const open = this.isOpen(key, !n.collapsed);
-        return v_flex().gap(4)
-          .child(h_flex().id(key).h(28).px(4).gap(6).items_center().rounded(8).cursor_pointer()
-            .hover((s) => s.bg(p.hover))
-            .on_mouse_down("left", (_e, cx) => { this.toggle(key, !n.collapsed); cx.notify(); })
-            .child(div().w(10).text_size(10).text_color(p.faint).child(open ? "▾" : "▸"))
-            .child(div().text_size(12).font_medium().text_color(p.muted).child(n.label))
-            .when(n.kind === "group" && !!n.fixed.type, (el) => el.child(div().text_size(11.5).text_color(p.faint).child(n.fixed.type))))
-          .when(open, (el) => el.child(v_flex().pl(12).gap(4).children(this.nodes(p, panel, n.children))));
-      }
-      return this.leaf(p, panel, n);
+      if (n.kind !== "folder" && n.kind !== "group") return this.leaf(p, panel, n);
+      // A section is a card of its own: a header (chevron, name, how many you've changed) that
+      // folds the controls away. Cards nest one tone apart, so a card inside a card still reads.
+      const key = `f-${panel.stem}-${n.path}`;
+      const open = this.isOpen(key, !n.collapsed);
+      const mine = leavesOf(n.children).filter((l) => VALUE_KINDS.has(l.kind));
+      const changed = mine.filter((l) => !same(panel.values[l.path], l.def)).length;
+      return v_flex().min_w(0).p(6).gap(6).rounded(14).bg(depth % 2 === 0 ? p.raised : p.card)
+        .child(h_flex().id(key).h(32).pl(8).pr(10).gap(8).items_center().min_w(0).rounded(10).cursor_pointer()
+          .hover((s) => s.bg(p.hover))
+          .on_mouse_down("left", (_e, cx) => { this.toggle(key, !n.collapsed); cx.notify(); })
+          .child(svg(ICON(open ? "chevron-down" : "chevron-right")).size(12).flex_none().text_color(p.muted))
+          .child(div().flex_1().min_w(0).truncate().text_size(12).font_medium().text_color(p.ink).child(n.label))
+          .when(changed > 0, (el) => el.child(h_flex().flex_none().gap(4).items_center()
+            .child(div().w(5).h(5).rounded_full().bg(p.accent))
+            .child(div().text_size(11).text_color(p.muted).child(String(changed)))))
+          .when(changed === 0 && !open, (el) => el.child(div().flex_none().text_size(11).text_color(p.faint).child(String(mine.length)))))
+        .when(open, (el) => el.child(v_flex().min_w(0).gap(6).children(this.nodes(p, panel, n.children, depth + 1))));
     });
   }
 
@@ -674,18 +736,18 @@ export class Riff {
     const changed = VALUE_KINDS.has(l.kind) && !same(v, l.def);
     const id = (kind) => `${kind}-${panel.stem}-${l.path}`;
     // Every control is one 28px bar, radius 8, the label inside on the left.
-    const bar = (kind) => h_flex().id(id(kind)).h(28).pl(10).pr(4).gap(8).items_center().rounded(8).bg(p.ground);
-    const label = () => h_flex().flex_none().gap(6).items_center()
-      .child(div().text_size(12).text_color(changed ? p.ink : p.muted).child(l.label))
-      .when(changed, (el) => el.child(div().w(5).h(5).rounded_full().bg(p.accent)));
+    const bar = (kind) => h_flex().id(id(kind)).h(32).pl(12).pr(4).gap(8).items_center().rounded(10).bg(p.ground).min_w(0).overflow_hidden();
+    const label = () => h_flex().min_w(0).gap(6).items_center()
+      .child(div().min_w(0).truncate().text_size(12).text_color(changed ? p.ink : p.muted).child(l.label))
+      .when(changed, (el) => el.child(div().w(5).h(5).flex_none().rounded_full().bg(p.accent)));
     // A field shows its edge only while you type in it.
     const field = (state, opts = {}) => div()
       .id(id("fld"))
-      .h(22)
+      .h(24)
       .px(6)
       .flex()
       .items_center()
-      .rounded(6)
+      .rounded(8)
       .border_1()
       .border_color(panel.bad?.[l.path] ? STATUS.blocked : panel.focus === l.path ? p.accent : "#00000000")
       .cursor_text()
@@ -706,43 +768,41 @@ export class Riff {
         const at = w ? (((Math.min(l.max, Math.max(l.min, v)) - l.min) / (l.max - l.min || 1)) * w) / zoom : null;
         const under = at != null && at > 4 && at < 10 + l.label.length * 6.6 + (changed ? 11 : 0) + 6;
         const line = under ? "#00000000" : changed ? p.accent : p.muted;
-        return h_flex().gap(4).items_center()
+        return h_flex().gap(6).items_center()
           .child(div().id(id("sz")).flex_1().min_w(0)
             .on_size_change((size, cx) => {
               this.widths ??= {};
               if (Math.abs((this.widths[id("sz")] ?? 0) - size.width) > 0.5) { this.widths[id("sz")] = size.width; cx.notify(); }
             })
             .child(Slider.new(s).w_full().child(
-            SliderTrack.new(s).h(28).w_full().cursor_pointer().child(
+            SliderTrack.new(s).h(32).w_full().cursor_pointer().child(
               SliderIndicator.new(s)
-                .relative().w_full().h_full().rounded(8).bg(p.ground)
+                .relative().w_full().h_full().rounded(10).bg(p.ground)
                 // The value line is the fill's edge: it paints under the label, so text stays readable.
                 .range_style((fill) => fill.rounded_l(8).border_r_2().border_color(line).bg(changed ? tint(p.accent, "33") : p.selected))
-                .child(h_flex().absolute().top(0).left(10).h_full().items_center().child(label()))
+                .child(h_flex().absolute().top(0).left(10).right(6).h_full().items_center().overflow_hidden().child(label()))
                 // The shell paints the thumb above everything: keep it as an invisible grab handle.
-                .child(SliderThumb.new(s).id(id("thumb")).w(12).h(28).ml(-6))))))
-          .child(field(st.field, { w: 52, mono: true }));
+                .child(SliderThumb.new(s).id(id("thumb")).w(14).h(32).ml(-7))))))
+          .child(field(st.field, { w: 56, mono: true }));
       }
       case "toggle":
-        return bar("tg").pr(6).cursor_pointer().hover((s) => s.bg(p.hover))
+        return bar("tg").pr(8).cursor_pointer().hover((s) => s.bg(p.hover))
           .on_mouse_down("left", (_e, cx) => { panel.values[l.path] = !v; this.flush(panel, cx); cx.notify(); })
-          .child(label())
-          .child(div().flex_1())
-          .child(h_flex().w(28).h(16).p(2).rounded(8).bg(v ? p.accent : p.raised).when(!!v, (el) => el.justify_end())
-            .child(div().w(12).h(12).rounded(6).bg(v ? "#ffffff" : p.muted)));
+          .child(div().flex_1().min_w(0).child(label()))
+          .child(h_flex().w(36).h(20).flex_none().p(2).rounded(10).bg(v ? p.accent : p.raised).when(!!v, (el) => el.justify_end())
+            .child(div().w(16).h(16).rounded(8).bg(v ? "#ffffff" : p.muted)));
       case "color": {
         const ok = HEX.test(String(v).trim());
         return bar("col")
-          .child(label())
-          .child(div().flex_1())
-          .child(div().w(16).h(16).flex_none().rounded(4).border_1().border_color("#ffffff1a").when(ok, (el) => el.bg(String(v).trim())))
-          .child(field(st.field, { w: 92, mono: true }));
+          .child(div().flex_1().min_w(0).child(label()))
+          .child(div().w(18).h(18).flex_none().rounded(5).border_1().border_color("#ffffff1a").when(ok, (el) => el.bg(String(v).trim())))
+          .child(field(st.field, { w: 96, mono: true }));
       }
       case "text":
       case "numbers":
-        return bar("txt").child(label()).child(field(st.field, { mono: l.kind === "numbers" }));
+        return bar("txt").child(h_flex().flex_shrink(1).min_w(0).max_w(110).child(label())).child(field(st.field, { mono: l.kind === "numbers" }));
       case "select": {
-        const seg = (o) => div().id(id(`opt-${o.value}`)).h(22).px(8).flex().items_center().rounded(6).text_size(12).cursor_pointer()
+        const seg = (o) => div().id(id(`opt-${o.value}`)).h(26).px(10).min_w(0).truncate().flex().items_center().rounded(8).text_size(12).cursor_pointer()
           .when(v === o.value, (el) => el.bg(p.raised))
           .text_color(v === o.value ? p.ink : p.faint)
           .hover((s) => s.text_color(p.ink))
@@ -750,18 +810,18 @@ export class Riff {
           .on_mouse_down("left", (_e, cx) => { panel.values[l.path] = o.value; this.flush(panel, cx); cx.notify(); });
         // Short lists sit on the bar, segmented (22 + 3 + 3 = 28: radius 6 inside 8 at 2px in); long ones wrap below.
         const fits = l.options.length <= 3 && l.options.reduce((n, o) => n + o.label.length + 3, l.label.length) <= 30;
-        if (fits) return bar("sel").pr(3).child(label()).child(div().flex_1()).children(l.options.map((o) => seg(o).child(o.label)));
-        return v_flex().gap(4).p(3).rounded(8).bg(p.ground)
-          .child(h_flex().h(22).pl(7).items_center().child(label()))
-          .child(h_flex().flex_wrap().gap(2).children(l.options.map((o) => seg(o).child(o.label))));
+        if (fits) return bar("sel").pr(3).child(div().flex_1().min_w(0).child(label())).children(l.options.map((o) => seg(o).child(o.label)));
+        return v_flex().gap(6).p(3).rounded(10).bg(p.ground).min_w(0)
+          .child(h_flex().h(26).pl(9).items_center().min_w(0).child(label()))
+          .child(h_flex().flex_wrap().gap(2).min_w(0).children(l.options.map((o) => seg(o).child(o.label))));
       }
       case "action":
-        return h_flex().id(id("act")).h(28).px(10).items_center().justify_center().rounded(8).bg(p.raised)
+        return h_flex().id(id("act")).h(32).px(12).items_center().justify_center().rounded(10).bg(p.raised)
           .text_size(12).text_color(p.muted).cursor_pointer().hover((s) => s.text_color(p.ink)).active((s) => s.opacity(0.8))
           .on_mouse_down("left", (_e, cx) => this.answer(panel, cx, "answered", l))
           .child(l.label);
       default:
-        return div().px(10).text_size(11.5).text_color(p.faint).child(`${l.label}: ${l.why}`);
+        return div().w_full().min_w(0).px(10).text_size(11.5).text_color(p.faint).child(`${l.label}: ${l.why}`);
     }
   }
 }
@@ -769,26 +829,21 @@ export class Riff {
 // A theme color with an alpha, when it's plain #rrggbb.
 const tint = (color, alpha) => (/^#[0-9a-f]{6}$/i.test(color) ? color + alpha : color);
 
-// One field with its button inside: radius 12 = 8 (button) + 4 (inset).
-function composer(p, id, state, focus, can, busy, label, onSend) {
-  return h_flex().id(`cmp-${id}`).flex_none().p(4).gap(4).items_center().rounded(12).border_1()
-    .border_color(focus ? p.accent : p.line).bg(p.ground)
-    .child(div().flex_1().min_w(0).h(28).pl(6).flex().items_center().cursor_text()
-      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .child(Input.new(state).w_full().text_size(12).text_color(p.ink)))
-    .child(h_flex().id(`btn-${id}`).flex_none().h(28).pl(10).pr(12).gap(6).items_center().rounded(8).text_size(12.5).font_medium()
-      .bg(can ? p.ink : p.raised)
-      .text_color(can ? p.ground : p.faint)
-      .when(can, (el) => el.cursor_pointer().hover((s) => s.opacity(0.9)).active((s) => s.opacity(0.75)))
-      .on_mouse_down("left", (_e, cx) => { cx.stop_propagation(); if (can) onSend(cx); })
-      .child(svg(ICON(busy ? "spinner" : "message")).size(13))
-      .child(label));
+// The note: a field of its own, full width.
+function noteField(p, state, focus) {
+  return h_flex().flex_none().min_w(0).px(8).h(40).items_center().rounded(12).border_1()
+    .border_color(focus ? p.accent : p.line).bg(p.ground).cursor_text()
+    .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+    .child(div().flex_1().min_w(0).child(Input.new(state).w_full().text_size(12).text_color(p.ink)));
 }
 
+// The send button: its own row, so a narrow panel never squeezes the note.
+// The panel's primary action (a riff's Answer).
+function sendBtn(p, id, can, busy, label, onSend) {
+  return button(p, `btn-${id}`, label, (_e, cx) => onSend(cx), { variant: "primary", icon: "message", busy, disabled: !can && !busy });
+}
+
+// A small aside: Reset, Try again, Collapse all.
 function textBtn(p, id, label, onPress) {
-  return div().id(id).flex_none().h(22).px(6).flex().items_center().rounded(6).text_size(11.5).text_color(p.faint).cursor_pointer()
-    .hover((s) => s.bg(p.hover).text_color(p.ink))
-    .active((s) => s.opacity(0.8))
-    .on_mouse_down("left", (e, cx) => { cx.stop_propagation(); onPress(e, cx); })
-    .child(label);
+  return button(p, id, label, onPress, { variant: "ghost" });
 }

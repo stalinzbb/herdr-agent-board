@@ -8,7 +8,8 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, run, exec, home, readTextFile } from "herdr";
-import { ICON, STATUS, pal, dot, progIcon, tilde, ago } from "./ui.js";
+import { ICON, STATUS, pal, dot, progIcon, tilde, ago, mark } from "./ui.js";
+import { marksFor } from "./kinds.js";
 import { gitInfo, refreshGit } from "./git.js";
 
 const SESSIONS = () => `${home()}/.cache/herdr-kanban/sessions`;
@@ -145,6 +146,12 @@ function agentRows(p, a, depth, wide, branch) {
       .child(progIcon(a.pane.program, 13, p.muted))
       .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(a.agent ? p.ink : p.faint).child(a.name))
       .when(!!branch, (el) => el.child(div().flex_none().max_w(110).truncate().text_size(11).text_color(p.faint).child(branch)))
+      // What this session has attached, each kind in its own color: a riff, a port, a device, an open question.
+      // Narrow: just the dot (hover says what); wide: a small labeled pill.
+      .children(a.agent
+        ? marksFor({ terminal: a.pane.terminal, status: a.status, folders: [a.pane.cwd].filter(Boolean) })
+            .map((m, i) => mark(m.kind, wide ? m.text : null, `mk-${a.pane.pane ?? a.tab.id}-${i}`, m.tip))
+        : [])
       .when(a.subs.length > 0, (el) => el.child(div().flex_none().px(6).h(16).flex().items_center().rounded(8).bg(p.ground).text_size(10.5).text_color(p.muted).child(running > 0 ? `${running} running` : `${a.subs.length} done`)))
       .when(wide && a.tab.changed_at, (el) => el.child(div().flex_none().text_size(11).text_color(p.faint).child(ago(Date.now() - a.tab.changed_at)))),
     ...(fold ? [] : subs.map((s, i) => subRow(p, a, s, i))),
