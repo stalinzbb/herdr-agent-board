@@ -4,7 +4,8 @@
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { spaces, panes, focused, keys, window, run } from "herdr";
-import { ICON, STATUS, pal, dot, tilde } from "./ui.js";
+import { ICON, STATUS, KIND, pal, dot, tilde } from "./ui.js";
+import { riffs } from "./riffs.js";
 import { gitInfo, refreshGit } from "./git.js";
 import { cards } from "./board.js";
 import { UsageWidget } from "./usage.js";
@@ -59,6 +60,7 @@ export class StatusBar {
       .child(div().flex_1())
       // How many agents need you / are working: the counts, with the words on hover.
       .when(yours > 0, (el) => el.child(item("yours", `${yours} waiting on your answer`, dot(STATUS.blocked, 6), div().text_color(p.ink).child(String(yours)))))
+      .when(riffs().length > 0, (el) => el.child(item("riffs", `${riffs().length} riff${riffs().length === 1 ? "" : "s"} open`, dot(KIND.riff.color, 6), div().text_color(p.ink).child(String(riffs().length)))))
       .when(working > 0, (el) => el.child(item("working", `${working} working`, dot(STATUS.working, 6), div().child(String(working)))))
       .child(div().w(1).h(14).mx(6).bg(p.line))
       .child(this.usage.compact(p))

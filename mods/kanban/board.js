@@ -12,7 +12,8 @@
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgentOrder, openOverlay, home, window, layout } from "herdr";
-import { ICON, STATUS, pal, ago, dot, progIcon, iconBtn, tilde } from "./ui.js";
+import { ICON, STATUS, KIND, tint, pal, ago, dot, progIcon, iconBtn, tilde } from "./ui.js";
+import { devFor } from "./kinds.js";
 import { railTo } from "./railtabs.js";
 import { riffs, goToRiff } from "./riffs.js";
 import { gitInfo } from "./git.js";
@@ -76,14 +77,7 @@ function dur(ms) {
 // The running servers (and, through them, simulators) whose folder this card's terminals are in.
 function devUse(c) {
   if (c.demo_dev) return c.demo_dev;
-  const dev = shared("kanban.dev");
-  if (!dev) return { servers: [], others: [], devices: false };
-  const h = home();
-  const near = (a, b) => a && b && a !== h && b !== h && (a === b || a.startsWith(b + "/") || b.startsWith(a + "/"));
-  const hits = (folder) => c.folders.some((f) => near(f, folder));
-  const servers = (dev.servers ?? []).filter((s) => hits(s.folder));
-  const others = (dev.others ?? []).filter((o) => hits(o.cwd));
-  return { servers, others, devices: servers.some((s) => s.devices), sims: dev.sims ?? [], android: dev.android ?? [] };
+  return devFor(c.folders);
 }
 
 function devChips(p, c) {
@@ -110,13 +104,13 @@ function devChips(p, c) {
       .child(label);
   const out = [];
   for (const s of u.servers)
-    out.push(chip(`dv-${c.tab.id}-${s.id}`, "server", s.port ? `${s.name} :${s.port}` : s.name, STATUS.done, () =>
+    out.push(chip(`dv-${c.tab.id}-${s.id}`, "server", s.port ? `${s.name} :${s.port}` : s.name, KIND.port.color, () =>
       s.term ? run("terminal.peek", { terminal: s.term }) : exec("open", [s.url ?? `http://localhost:${s.port}`])));
   for (const o of u.others)
-    out.push(chip(`dvo-${c.tab.id}-${o.port}`, "server", `${o.cmd} :${o.port}`, STATUS.done, () => exec("open", [`http://localhost:${o.port}`])));
+    out.push(chip(`dvo-${c.tab.id}-${o.port}`, "server", `${o.cmd} :${o.port}`, KIND.port.color, () => exec("open", [`http://localhost:${o.port}`])));
   if (u.devices) {
-    for (const sim of u.sims) out.push(chip(`dvs-${c.tab.id}-${sim.name}`, "phone", sim.name, STATUS.done, () => exec("open", ["-a", "Simulator"])));
-    for (const a of u.android) out.push(chip(`dva-${c.tab.id}-${a}`, "phone", a.replace(/^emulator-/, "Android "), STATUS.done, () => {}));
+    for (const sim of u.sims) out.push(chip(`dvs-${c.tab.id}-${sim.name}`, "phone", sim.name, KIND.device.color, () => exec("open", ["-a", "Simulator"])));
+    for (const a of u.android) out.push(chip(`dva-${c.tab.id}-${a}`, "phone", a.replace(/^emulator-/, "Android "), KIND.device.color, () => {}));
   }
   return out;
 }
@@ -449,16 +443,16 @@ function card(p, c) {
           .gap(6)
           .items_center()
           .rounded(9)
-          .bg("#e5566f1f")
+          .bg(tint(KIND.riff.color, "1f"))
           .text_size(12)
-          .text_color("#f2a0ae")
+          .text_color("#c4b5fd")
           .cursor_pointer()
-          .hover((s) => s.bg("#e5566f33"))
+          .hover((s) => s.bg(tint(KIND.riff.color, "33")))
           .on_mouse_down("left", (_e, cx) => {
             cx.stop_propagation();
             if (!c.riff.demo) goToRiff(c.riff.terminal);
           })
-          .child(dot(STATUS.blocked, 6))
+          .child(dot(KIND.riff.color, 6))
           .child(div().flex_none().font_medium().child("Your call"))
           .child(div().min_w(0).truncate().child(c.riff.question))))
     .when(!c.riff && c.column === "you" && c.turn === "ask", (el) => el.child(h_flex().child(badge("Needs your answer", "#f2a0ae", "#e5566f1f"))))

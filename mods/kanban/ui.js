@@ -14,6 +14,30 @@ export const STATUS = {
   idle: "#6b6b6b",
 };
 
+// What a marker means, by color, everywhere (sidebar, board, rail tabs, Riff). The status colors above say
+// what an agent is doing (needs you / working / done); these say what a session has attached to it.
+// Red stays "asked you something", so a riff, a port and a device each get a hue of their own.
+export const KIND = {
+  ask: { color: STATUS.blocked, label: "Waiting on your answer" },
+  riff: { color: "#a78bfa", label: "Has a riff open (a question with live controls)" },
+  task: { color: "#4c9aff", label: "Tasks" },
+  port: { color: "#22d3ee", label: "A dev server is running here" },
+  device: { color: "#f472b6", label: "A simulator or device is in use" },
+};
+
+// A theme color with an alpha, when it's plain #rrggbb.
+export const tint = (color, alpha = "26") => (/^#[0-9a-f]{6}$/i.test(color) ? color + alpha : color);
+
+// A marker: the kind's dot alone, or with `text` a small pill in the kind's color. The tooltip says what it is.
+export function mark(kind, text, id, tip) {
+  const k = KIND[kind];
+  const el = text
+    ? h_flex().flex_none().h(16).px(6).gap(4).items_center().rounded(8).bg(tint(k.color)).text_size(10.5).font_medium().text_color(k.color)
+        .child(div().w(5).h(5).flex_none().rounded_full().bg(k.color)).child(div().whitespace_nowrap().child(text))
+    : div().flex_none().w(14).h(14).flex().items_center().justify_center().child(div().w(6).h(6).rounded_full().bg(k.color));
+  return (id ? el.id(id) : el).tooltip(tip ?? k.label);
+}
+
 export function pal() {
   const t = theme();
   return {

@@ -13,7 +13,7 @@
 import { div, svg } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input, SliderState, Slider, SliderTrack, SliderIndicator, SliderThumb } from "gpui-base";
 import { exec, home, readTextFile, writeTextFile, watchFolder, terminals, agents, panes, focused, notify, settings } from "herdr";
-import { ICON, STATUS, pal, tilde, dot } from "./ui.js";
+import { ICON, STATUS, KIND, pal, tilde, dot } from "./ui.js";
 import { demo, DEMO_RIFF } from "./demo.js";
 import { RIFF_DIR, isSpec, stemOf, riffs, askerLabel, paneLabel, goToRiff } from "./riffs.js";
 
@@ -630,7 +630,7 @@ export class Riff {
         return h_flex().id(`wait-${r.stem}`).flex_none().mx(4).px(12).py(6).gap(8).items_center().rounded(10).cursor_pointer()
           .hover((s) => s.bg(p.hover))
           .on_mouse_down("left", () => goToRiff(r.terminal))
-          .child(dot(STATUS.blocked, 7))
+          .child(dot(KIND.riff.color, 7))
           .child(v_flex().flex_1().min_w(0)
             .child(div().min_w(0).truncate().text_size(12.5).child(r.question))
             .child(div().truncate().text_size(11.5).text_color(p.faint).child(askerLabel(a)))
@@ -654,14 +654,16 @@ export class Riff {
     // Who is asking leads: the project (space), then where in it (tab, branch or folder, pane) and the
     // session id, so two agents in one project can't be mixed up. The question is the body, not the title.
     const isDemo = panel.stem.startsWith("demo");
-    const pane = agent ? panes().find((q) => q.terminal === agent.address) : null;
-    const project = isDemo ? "acme-store" : agent?.space_name ?? "Unknown agent";
+    const pane = panes().find((q) => q.terminal === (agent?.address ?? panel.spec.terminal)) ?? null;
+    // An agent Herdr can't place (another space, or gone from the list) is still named by its folder.
+    const folder = (pane?.cwd ?? panel.spec.cwd ?? "").replace(/\/+$/, "").split("/").pop();
+    const project = isDemo ? "acme-store" : agent?.space_name ?? (folder || "Unknown agent");
     const tabName = agent?.tab_name && !/^\d+$/.test(agent.tab_name) && agent.tab_name !== project ? agent.tab_name : null;
     const where = pane?.branch || (pane?.cwd ? pane.cwd.replace(/\/+$/, "").split("/").pop() : null);
     const mates = agent ? agents().filter((x) => x.tab === agent.tab) : [];
     const chips = isDemo
       ? [{ t: "feat/gallery", icon: "branch" }, { t: "pane 2" }, { t: "t1d5", mono: true }]
-      : [tabName && { t: tabName }, where && { t: where, icon: "branch" }, mates.length > 1 && { t: `pane ${mates.findIndex((x) => x.address === agent.address) + 1}` }, agent && { t: agent.address, mono: true }].filter(Boolean);
+      : [tabName && { t: tabName }, where && where !== project && { t: where, icon: "branch" }, mates.length > 1 && { t: `pane ${mates.findIndex((x) => x.address === agent.address) + 1}` }, (agent?.address ?? panel.spec.terminal) && { t: agent?.address ?? panel.spec.terminal, mono: true }].filter(Boolean);
     const chip = (c, i) => h_flex().id(`chip-${panel.stem}-${i}`).flex_shrink(1).min_w(0).max_w(150).h(20).px(6).gap(4).items_center().rounded(6).bg(p.raised)
       .when(!!c.icon, (el) => el.child(svg(ICON(c.icon)).size(11).flex_none().text_color(p.faint)))
       .child(div().min_w(0).truncate().text_size(11).text_color(p.muted).when(!!c.mono, (el) => el.font_family("Geist Mono")).child(c.t));
@@ -671,7 +673,7 @@ export class Riff {
       .child(v_flex().px(16).gap(6).min_w(0)
         .child(h_flex().id(`who-${panel.stem}`).gap(6).items_center().min_w(0)
           .when(foldable, (el) => el.cursor_pointer().on_mouse_down("left", (_e, cx) => { this.toggle(key, index === 0); cx.notify(); }))
-          .child(dot(STATUS.blocked, 7))
+          .child(dot(KIND.riff.color, 7))
           .child(div().flex_1().min_w(0).truncate().text_size(14).font_medium().child(project))
           .when(!open && changed > 0, (el) => el.child(h_flex().flex_none().gap(4).items_center()
             .child(div().w(5).h(5).rounded_full().bg(p.accent))
