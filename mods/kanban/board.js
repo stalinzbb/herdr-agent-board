@@ -9,6 +9,7 @@
 //   Done      - tabs you marked done (Herdr's tab.settle: put away, still running). Opening one, or
 //               its agent needing you, brings it back.
 
+import { soundsOn, toggleMute } from "./mute.js";
 import { div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { spaces, panes, terminals, agents, run, exec, shared, setShared, setAgentOrder, openOverlay, window, layout } from "herdr";
@@ -170,6 +171,10 @@ const urgent = (list) => list.filter((c) => c.column === "you" && c.turn === "as
 const quiet = (c) => c.turn !== "ask" && c.turn !== "new" && !!c.tab.changed_at && Date.now() - c.tab.changed_at > DAY;
 
 // `pick`: several agents are shown first, ticked, so you choose who gets it before you pick the prompt.
+// Send to all agents (the top-bar broadcast button) is off for now: saved prompts live in a JSON file
+// and need an in-app editor first. Set to true to bring the button back. A card's own prompt button stays.
+const SEND_TO_ALL = false;
+
 export function openPrompts(targets, title, pick = false) {
   const who = pick
     ? agents().filter((a) => targets.includes(a.address)).map((a) => ({ address: a.address, label: askerLabel(a), status: a.status }))
@@ -213,24 +218,29 @@ function tool(p, id, icon, tip, onPress, on = false) {
     .child(svg(ICON(icon)).size(16));
 }
 
-function segment(p, id, label, on, onPress) {
-  return div()
+// One half of the Board | Sidebar switch: an icon and a label. The chosen one is a raised pill with a
+// hairline; the other lifts on hover and dips when pressed.
+function segment(p, id, icon, label, on, onPress) {
+  return h_flex()
     .id(id)
-    .h(24)
+    .flex_none()
+    .h(26)
     .px(10)
-    .flex()
+    .gap(6)
     .items_center()
     .rounded(8)
-    .text_size(12)
+    .text_size(12.5)
+    .whitespace_nowrap()
     .cursor_pointer()
-    .text_color(on ? p.ink : p.faint)
-    .when(on, (el) => el.bg(p.raised))
-    .hover((s) => s.text_color(p.ink))
-    .active((s) => s.opacity(0.8))
+    .text_color(on ? p.ink : p.muted)
+    .when(on, (el) => el.bg(p.raised).border_1().border_color(p.line))
+    .when(!on, (el) => el.border_1().border_color("#00000000").hover((s) => s.bg(p.hover).text_color(p.ink)))
+    .active((s) => s.opacity(0.75))
     .on_mouse_down("left", (_e, cx) => {
       cx.stop_propagation();
-      onPress();
+      if (!on) onPress();
     })
+    .when(!!icon, (el) => el.child(svg(ICON(icon)).size(14)))
     .child(label);
 }
 
@@ -265,14 +275,14 @@ export function bar() {
     .text_color(p.ink)
     .child(image("mods/kanban/herdr.png").w(22).h(22).flex_none().mr(6))
     .child(
-      h_flex().gap(2).p(2).rounded(10).bg(p.ground).mr(6)
-        .child(segment(p, "mode-board", "Board", !sideShown, () => setMode("board")).tooltip("Kanban board  ⌘B"))
-        .child(segment(p, "mode-side", "Sidebar", sideShown, () => setMode("sidebar")).tooltip("Projects, branches, agents  ⌘B")))
+      h_flex().gap(2).p(3).rounded(11).bg(p.ground).mr(6)
+        .child(segment(p, "mode-board", "board", "Board", !sideShown, () => setMode("board")).tooltip("Kanban board  ⌘B"))
+        .child(segment(p, "mode-side", "sidebar", "Sidebar", sideShown, () => setMode("sidebar")).tooltip("Projects, branches, agents  ⌘B")))
     // Which spaces the board shows: a segmented control, the space's own name when it's one.
     .when(!sideShown, (el) => el.child(
       h_flex().gap(2).p(2).rounded(10).bg(p.ground)
-        .child(segment(p, "scope-all", "All", scope() === "all", () => setShared("kanban.scope", "all")))
-        .child(segment(p, "scope-space", demo() ? "Acme Store" : spaces().find((s) => s.active)?.name ?? "This space", scope() === "space", () => setShared("kanban.scope", "space")))))
+        .child(segment(p, "scope-all", null, "All", scope() === "all", () => setShared("kanban.scope", "all")))
+        .child(segment(p, "scope-space", null, demo() ? "Acme Store" : spaces().find((s) => s.active)?.name ?? "This space", scope() === "space", () => setShared("kanban.scope", "space")))))
     // Questions waiting: the one thing worth reading from across the room. Click: the oldest.
     .when(asks.length > 0, (el) =>
       el.child(
@@ -286,8 +296,9 @@ export function bar() {
           .child(dot(STATUS.blocked, 6))
           .child(`${asks.length} waiting on you`)))
     .child(div().flex_1())
-    .when(live.length > 0, (el) => el.child(tool(p, "prompt-all", "broadcast", live.length > 1 ? `Send a saved prompt to your agents: choose which of the ${live.length}` : "Send a saved prompt to your agent", () => openPrompts(live, `All agents (${live.length})`, live.length > 1))))
-    .child(tool(p, "toggle-rail", "panel", "Side panel: Dev ⌘⇧E · Tasks ⌘⇧J · Riff ⌘⇧Y", () => run("layout.toggle", { id: "rail" }), railShown))
+    .when(SEND_TO_ALL && live.length > 0, (el) => el.child(tool(p, "prompt-all", "broadcast", live.length > 1 ? `Send a saved prompt to your agents: choose which of the ${live.length}` : "Send a saved prompt to your agent", () => openPrompts(live, `All agents (${live.length})`, live.length > 1))))
+    .child(tool(p, "mute", soundsOn() ? "speaker" : "speaker-mute", soundsOn() ? "Mute notification sounds  ⌘⇧M" : "Sounds are muted: turn them on  ⌘⇧M", () => toggleMute(), !soundsOn()))
+    .child(tool(p, "toggle-rail", "panel", "Side panel  ⌘⇧B · Dev ⌘⇧E · Tasks ⌘⇧J · Riff ⌘⇧Y", () => run("layout.toggle", { id: "rail" }), railShown))
     .child(tool(p, "to-classic", "classic", "Herdr's classic layout  ⌘⇧K", () => run("layout.switch", { name: "main" })))
     .child(div().w(1).h(18).mx(6).bg(p.line))
     .child(

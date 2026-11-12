@@ -5,7 +5,9 @@
     "cmd-shift-e": "kanban.dev",
     "cmd-shift-j": "kanban.jira",
     "cmd-shift-u": "kanban.usage",
-    "cmd-shift-y": "kanban.riff"
+    "cmd-shift-y": "kanban.riff",
+    "cmd-shift-b": "kanban.panel",
+    "cmd-shift-m": "kanban.mute"
   },
   "layout:main": {
     "cmd-shift-k": "layout.switch:kanban"
