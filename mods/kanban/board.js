@@ -218,24 +218,29 @@ function tool(p, id, icon, tip, onPress, on = false) {
     .child(svg(ICON(icon)).size(16));
 }
 
-function segment(p, id, label, on, onPress) {
-  return div()
+// One half of the Board | Sidebar switch: an icon and a label. The chosen one is a raised pill with a
+// hairline; the other lifts on hover and dips when pressed.
+function segment(p, id, icon, label, on, onPress) {
+  return h_flex()
     .id(id)
-    .h(24)
+    .flex_none()
+    .h(26)
     .px(10)
-    .flex()
+    .gap(6)
     .items_center()
     .rounded(8)
-    .text_size(12)
+    .text_size(12.5)
+    .whitespace_nowrap()
     .cursor_pointer()
-    .text_color(on ? p.ink : p.faint)
-    .when(on, (el) => el.bg(p.raised))
-    .hover((s) => s.text_color(p.ink))
-    .active((s) => s.opacity(0.8))
+    .text_color(on ? p.ink : p.muted)
+    .when(on, (el) => el.bg(p.raised).border_1().border_color(p.line))
+    .when(!on, (el) => el.border_1().border_color("#00000000").hover((s) => s.bg(p.hover).text_color(p.ink)))
+    .active((s) => s.opacity(0.75))
     .on_mouse_down("left", (_e, cx) => {
       cx.stop_propagation();
-      onPress();
+      if (!on) onPress();
     })
+    .when(!!icon, (el) => el.child(svg(ICON(icon)).size(14)))
     .child(label);
 }
 
@@ -270,14 +275,14 @@ export function bar() {
     .text_color(p.ink)
     .child(image("mods/kanban/herdr.png").w(22).h(22).flex_none().mr(6))
     .child(
-      h_flex().gap(2).p(2).rounded(10).bg(p.ground).mr(6)
-        .child(segment(p, "mode-board", "Board", !sideShown, () => setMode("board")).tooltip("Kanban board  ⌘B"))
-        .child(segment(p, "mode-side", "Sidebar", sideShown, () => setMode("sidebar")).tooltip("Projects, branches, agents  ⌘B")))
+      h_flex().gap(2).p(3).rounded(11).bg(p.ground).mr(6)
+        .child(segment(p, "mode-board", "board", "Board", !sideShown, () => setMode("board")).tooltip("Kanban board  ⌘B"))
+        .child(segment(p, "mode-side", "sidebar", "Sidebar", sideShown, () => setMode("sidebar")).tooltip("Projects, branches, agents  ⌘B")))
     // Which spaces the board shows: a segmented control, the space's own name when it's one.
     .when(!sideShown, (el) => el.child(
       h_flex().gap(2).p(2).rounded(10).bg(p.ground)
-        .child(segment(p, "scope-all", "All", scope() === "all", () => setShared("kanban.scope", "all")))
-        .child(segment(p, "scope-space", demo() ? "Acme Store" : spaces().find((s) => s.active)?.name ?? "This space", scope() === "space", () => setShared("kanban.scope", "space")))))
+        .child(segment(p, "scope-all", null, "All", scope() === "all", () => setShared("kanban.scope", "all")))
+        .child(segment(p, "scope-space", null, demo() ? "Acme Store" : spaces().find((s) => s.active)?.name ?? "This space", scope() === "space", () => setShared("kanban.scope", "space")))))
     // Questions waiting: the one thing worth reading from across the room. Click: the oldest.
     .when(asks.length > 0, (el) =>
       el.child(
