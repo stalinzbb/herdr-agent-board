@@ -20,10 +20,11 @@ import { RIFF_DIR, isSpec, stemOf, riffs, askerLabel, paneLabel, goToRiff } from
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 // What the empty panel offers to send. It has to stand on its own: the agent may have been cleared,
-// may not have the riff skill loaded (it started before the plugin was installed), and "riff" alone
-// reads as "improvise some variations". So it names the skill, gives the fallback, and sets the scope.
+// may not have the riff skill loaded (it started before the plugin was installed, or it isn't Claude Code
+// at all), and "riff" alone reads as "improvise some variations". So it points at the tool's own help, which
+// any agent can read, mentions the skill for those that have it, and sets the scope.
 const SAMPLE = "Riff me the matter-of-taste values in what you just built (spacing, sizes, colors, timing, motion). "
-  + "Use the herdr-agent-board:riff skill; if you don't have it, run `python3 ~/.config/herdr-app/mods/kanban/riff.py --help` and follow that. "
+  + "Run `python3 ~/.config/herdr-app/mods/kanban/riff.py --help` and follow it (agents with the herdr-agent-board:riff skill can use that instead). "
   + "Have a small subagent draft the plan (most impact first, 2–8 controls each, defaults read from the code; check git if you don't remember what you built), "
   + "then open one riff at a time yourself and apply each answer before the next. Don't answer in prose.";
 
