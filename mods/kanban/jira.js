@@ -92,6 +92,44 @@ export class Jira {
     this.cfg = { views: [], sources: [], ...cfg };
     // The panel's name ("name" in tasks.json, else Jira's, else "Tasks"): the rail switch reads it.
     setShared("kanban.tasks.name", this.cfg.name || this.cfg.jira_name || "Tasks");
+    this.publish();
+  }
+
+  // Whether the rail shows a Tasks tab at all: only when something feeds it (a connected source, or
+  // tasks of your own). ⌘⇧J still opens the panel, where you can connect one.
+  publish() {
+    const on = this.isDemo || ["jira", "github", "linear"].some((s) => this.has(s)) || (this.local?.tasks ?? []).length > 0;
+    if (shared("kanban.tasks.shown") !== on) setShared("kanban.tasks.shown", on);
+  }
+
+  async connectSource(source, cx) {
+    const r = await exec("/usr/bin/env", ["python3", "-I", `${appHome()}/mods/kanban/tasks-sync.py`, "connect", source, "on"]).catch((e) => ({ code: 1, stderr: String(e) }));
+    if (r.code !== 0) return notify({ title: `Couldn't connect ${source}`, body: (r.stderr || "").slice(0, 160), level: "warning" });
+    await this.loadConfig();
+    this.refresh("sync");
+    cx.notify();
+  }
+
+  // Where tasks come from, when nothing outside is connected: each source that can run here has a
+  // button; one that can't says what it needs. Jira also needs its site set up, which setup does.
+  connectCard(p) {
+    const av = this.cfg.available ?? {};
+    const rows = [
+      ["github", "GitHub", "Issues and pull requests that need you"],
+      ["linear", "Linear", "Issues assigned to you"],
+      ["jira", "Jira", "Through Claude Code's Atlassian connector"],
+    ];
+    return v_flex().flex_none().mx(12).mb(4).p(10).gap(8).rounded(10).bg(p.card)
+      .child(div().text_size(12).text_color(p.muted).child("Where do your tasks come from? Tasks of your own work without any of these (use +)."))
+      .children(rows.map(([id, name, about]) => {
+        const a = av[id] ?? { ok: true };
+        return h_flex().id(`conn-${id}`).gap(8).items_center()
+          .child(v_flex().flex_1().min_w(0)
+            .child(div().text_size(12.5).text_color(p.ink).child(name))
+            .child(div().text_size(11).text_color(p.faint).child(a.ok ? about : a.why)))
+          .when(a.ok && id !== "jira", (el) => el.child(button(p, `conn-go-${id}`, "Connect", (_e, cx) => this.connectSource(id, cx), { variant: "secondary" })))
+          .when(a.ok && id === "jira", (el) => el.child(div().flex_none().text_size(11).text_color(p.faint).child("Run the setup skill")));
+      }));
   }
 
   has(source) {
@@ -125,6 +163,7 @@ export class Jira {
     const text = await readTextFile(LOCAL()).catch(() => null);
     this.localText = text ?? null;
     try { this.local = text ? JSON.parse(text) : { tasks: [] }; } catch { this.local = { tasks: [] }; }
+    this.publish();
   }
 
   async load(first) {
@@ -329,7 +368,8 @@ export class Jira {
     const busy = this.running();
     const err = this.cfg.error ?? (Object.values(this.cfg.errors ?? {})[0]) ?? (this.has("jira") && this.status?.state === "error" ? this.status.error : null);
     // Only your own tasks so far: say how to bring in the rest.
-    const lonely = !this.isDemo && !this.cfg.error && !["jira", "github", "linear"].some((s) => this.has(s));
+    // (Not before the config has loaded: `available` comes with it.)
+    const lonely = !this.isDemo && !this.cfg.error && !!this.cfg.available && !["jira", "github", "linear"].some((s) => this.has(s));
 
     return v_flex()
       .size_full()
@@ -373,8 +413,7 @@ export class Jira {
         .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
         .child(Input.new(this.adding).w_full().text_size(12.5).text_color(p.ink))))
       .when(!!err, (el) => el.child(div().flex_none().px(12).pb(6).text_size(11.5).text_color(STATUS.blocked).child(String(err).slice(0, 220))))
-      .when(lonely, (el) => el.child(div().flex_none().mx(12).mb(4).px(10).py(8).rounded(10).bg(p.card).text_size(12).text_color(p.muted)
-        .child("Bring in GitHub issues, Linear or Jira: in Claude Code, run /herdr-agent-board:setup")))
+      .when(lonely, (el) => el.child(this.connectCard(p)))
       .child(
         v_flex().id(`jlist-${cur}`).flex_1().min_h(0).overflow_y_scrollbar().pb(12)
           .children(cur === "today" ? this.today(p) : this.tabBody(p, this.tabs().find((t) => t.id === cur))));

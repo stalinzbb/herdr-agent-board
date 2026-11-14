@@ -7,6 +7,7 @@
   tasks-sync.py states linear <id> <key>         where a Linear issue can go -> transitions-<key>.json
   tasks-sync.py move linear <id> <key> <state>   move it there -> action-<key>.json
   tasks-sync.py add "<title>"           add one of your own tasks (agents can use this)
+  tasks-sync.py connect <source> on|off turn a source on or off in your tasks.json
 
 Settings: ~/.config/herdr-board/tasks.json (else defaults/tasks.json):
   {"name": "Tasks", "sources": {"jira": {...}, "github": {...}, "linear": {...}, "local": {...}}}
@@ -23,6 +24,7 @@ import importlib.util
 import json
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -74,6 +76,47 @@ def enabled(cfg, name):
     return bool(src and src.get("enabled", True))
 
 
+# ---- what this machine can connect to
+
+def keychain_has_linear():
+    p = subprocess.run(["security", "find-generic-password", "-s", "herdr-board-linear", "-w"], capture_output=True, text=True)
+    return p.returncode == 0
+
+
+def have(cmd):
+    """Is this command installed? Herdr runs us with a bare PATH, so ask a login shell too, the way
+    the Jira refresh finds claude."""
+    if shutil.which(cmd):
+        return True
+    try:
+        return subprocess.run(["/bin/zsh", "-lc", f"command -v {cmd}"], capture_output=True, timeout=10).returncode == 0
+    except Exception:
+        return False
+
+
+def availability():
+    """{source: {"ok": bool, "why": str}}: whether each outside source can work here. A source that
+    can't is left out of the panel (and the Tasks tab hides if nothing is left); the panel says why."""
+    return {
+        "jira": {"ok": have("claude"), "why": "Needs Claude Code (the claude command) with the Atlassian connector"},
+        "github": {"ok": have("gh"), "why": "Needs the GitHub CLI (gh), signed in"},
+        "linear": {"ok": bool(os.environ.get("LINEAR_API_KEY")) or keychain_has_linear(), "why": "Needs a Linear API key ($LINEAR_API_KEY, or the Keychain item herdr-board-linear)"},
+    }
+
+
+def connect(source, state):
+    """Turn a source on or off in your tasks.json (made from the default the first time)."""
+    if source not in ("jira", "github", "linear", "local") or state not in ("on", "off"):
+        sys.exit("Usage: tasks-sync.py connect <jira|github|linear|local> <on|off>")
+    cfg = settings()
+    cfg.pop("path", None)
+    cfg.setdefault("sources", {}).setdefault(source, {})["enabled"] = state == "on"
+    os.makedirs(USER_CFG, exist_ok=True)
+    with open(os.path.join(USER_CFG, "tasks.json"), "w") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+
+
 # ---- config: one panel config from every enabled source
 
 def config():
@@ -81,6 +124,14 @@ def config():
     src = cfg.get("sources", {})
     out = {"name": cfg.get("name") or "Tasks", "sources": [], "views": [], "tabs": [{"id": "today", "label": "Today"}], "errors": {}}
     today = []
+    avail = availability()
+    out["available"] = avail
+    # A source you turned on that can't run here is skipped, not an error: the panel shows why.
+    for name in ("jira", "github", "linear"):
+        if enabled(cfg, name) and not avail[name]["ok"]:
+            src = {**src, name: {**src[name], "enabled": False}}
+            cfg = {**cfg, "sources": src}
+            out.setdefault("unavailable", {})[name] = avail[name]["why"]
 
     if enabled(cfg, "jira"):
         try:
@@ -288,6 +339,8 @@ def main():
         except BaseException as e:
             print(json.dumps({"error": str(e)[:240], "views": [], "tabs": [{"id": "today", "label": "Today"}]}))
         return
+    if mode == "connect" and len(sys.argv) > 3:
+        return connect(sys.argv[2], sys.argv[3])
     if mode == "add":
         return add_local(" ".join(sys.argv[2:]).strip() or sys.exit("Usage: tasks-sync.py add <title>"))
     if mode == "states" and sys.argv[2] == "linear":
