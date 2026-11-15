@@ -234,7 +234,7 @@ function releaseStates(panel, keepNote) {
 }
 
 // Native states (sliders, fields) need a live host call with a window: `init` or an event handler.
-// The scan is a task, and neither a task after an await, a timer callback nor
+// The scan is a task, and neither a task after an await, a timer callback (it aborted Herdr) nor
 // the init of a nested view the task creates is one: making them there throws "[uninitialized]".
 // So the scan only reads riffs; their controls are made by the panel's pointer handlers, the moment
 // you move onto the Riff tab, and until then a riff shows its values as text.
