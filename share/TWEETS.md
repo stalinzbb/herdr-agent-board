@@ -4,9 +4,8 @@ Images here are cropped to demo data only ("Acme Store"); the raw full-window fr
 projects and terminal text and are not in the repo.
 
 ## Before you post
-- The repo is **private**. Make it public (or publish a landing page / gist) before linking, and read
-  the README once as a stranger: it mentions Jira/Atlassian setup, which is fine, but check for any
-  company names. Demo data is fictional.
+- The repo is public. Read the README once as a stranger before linking: it mentions Jira/Atlassian
+  setup, which is fine, but check for any company names. Demo data is fictional.
 - Credit DialKit (Josh Puckett, github.com/joshpuckett/dialkit): Riff's control shapes come from it.
   Tagging them is both right and good reach.
 - Record with demo mode on (`herdr-app do kanban.demo`) so no real session text is on screen. Crop out

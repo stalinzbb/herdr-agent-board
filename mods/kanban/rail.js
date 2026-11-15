@@ -5,6 +5,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, terminals, run, notify, appHome, shared, setShared } from "herdr";
 import { ICON, STATUS, KIND, pal, dot, iconBtn, expand, tilde, readConfig, editConfig } from "./ui.js";
+import { demo, DEMO_DEV_SERVERS, DEMO_LISTEN, DEMO_SIMS, DEMO_PHONES, DEMO_AVDS } from "./demo.js";
 
 const DEV_COMMANDS = new Set(["node", "bun", "deno", "python", "python3", "Python", "ruby", "java", "php", "go", "vite", "next-serv", "esbuild"]);
 const termName = (id) => `dev-${id}`.toLowerCase().replace(/[^a-z0-9_-]/g, "-").slice(0, 32);
@@ -39,6 +40,8 @@ export class Rail {
   }
 
   async pollPorts() {
+    // Demo mode: made-up ports, never the ones on this machine.
+    if (demo()) { this.listen = DEMO_LISTEN; this.ports = new Set(DEMO_LISTEN.map((o) => o.port)); return; }
     try {
       const r = await exec("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpcn"]);
       const out = [];
@@ -73,6 +76,7 @@ export class Rail {
   }
 
   async pollSims() {
+    if (demo()) { this.sims = DEMO_SIMS; return; }
     try {
       const r = await exec("xcrun", ["simctl", "list", "devices", "available", "-j"]);
       const all = [];
@@ -88,6 +92,7 @@ export class Rail {
   }
 
   async pollPhones() {
+    if (demo()) { this.phones = DEMO_PHONES; return; }
     try {
       const r = await exec("xcrun", ["xctrace", "list", "devices"]);
       const phones = [];
@@ -106,6 +111,7 @@ export class Rail {
   }
 
   async pollAndroid() {
+    if (demo()) { this.droid.avds = DEMO_AVDS; this.droid.running = []; return; }
     try {
       const [a, d] = await Promise.all([
         exec(this.droid.emulator, ["-list-avds"]).catch(() => ({ stdout: "" })),
@@ -245,7 +251,7 @@ export class Rail {
 
   render(cx) {
     const p = pal();
-    const servers = this.cfg.servers ?? [];
+    const servers = demo() ? DEMO_DEV_SERVERS : this.cfg.servers ?? [];
     const known = new Set(servers.map((s) => s.port).filter(Boolean));
     const others = this.listen.filter((o) => !known.has(o.port));
     const booted = this.sims.filter((s) => s.booted);
