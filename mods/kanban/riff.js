@@ -16,6 +16,7 @@ import { exec, home, readTextFile, writeTextFile, watchFolder, terminals, agents
 import { ICON, STATUS, KIND, pal, tilde, dot, button } from "./ui.js";
 import { demo, DEMO_RIFF } from "./demo.js";
 import { RIFF_DIR, isSpec, stemOf, riffs, askerLabel, paneLabel, goToRiff } from "./riffs.js";
+import { askTargets as askTargetsFor, askAgent, copyPrompt, askLabel as askLabelFor } from "./agentask.js";
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -579,11 +580,7 @@ export class Riff {
   // Who "Ask" sends to: the focused pane's agent. If you're on a pane that isn't one (a dev
   // server, a simulator log, a mod), every agent in the tab, so you can pick which pane to ask.
   askTargets() {
-    if (demo()) return [];
-    const f = focused();
-    const all = agents();
-    const here = all.find((a) => a.address === f?.terminal || a.address === f?.agent);
-    return here ? [here] : all.filter((a) => a.tab === f?.tab).slice(0, 3);
+    return askTargetsFor();
   }
 
   // Nothing open in this tab: one line, and a prompt to get one, ready to copy or send to an agent here.
@@ -592,19 +589,17 @@ export class Riff {
     const targets = this.askTargets();
     const open = !compact || this.askOpen;
     const btn = (id, label, onPress, primary) => button(p, id, label, (_e, cx) => onPress(cx), { variant: primary ? "primary" : "secondary" });
-    const ask = (a) => (cx) => cx.spawn(async () => {
-      const r = await exec("hc", ["send", a.address, SAMPLE]).catch((e) => ({ code: 1, stderr: String(e) }));
-      notify(r.code === 0 ? { title: "Asked for a riff", body: askerLabel(a), level: "success", timeout: 2000 } : { title: "Couldn't reach the agent", body: (r.stderr || "").trim().slice(0, 160), level: "warning" });
-    });
+    const ask = (a) => askAgent(a, SAMPLE, "Asked for a riff");
     // On an agent's pane: "Ask this agent". On another pane: a button per agent in the tab, by name.
     const onAgent = targets.length === 1 && targets[0].address === (focused()?.terminal ?? focused()?.agent);
-    const askLabel = (a) => (onAgent ? "Ask this agent" : `Ask ${paneLabel(a) ?? askerLabel(a)}`);
-    const title = targets.length > 1 ? "No questions in this tab" : "No questions from this agent";
+    const askLabel = (a) => (onAgent ? "Ask this agent" : askLabelFor(targets, a));
+    const title = "No riffs yet";
     return v_flex().flex_none().min_w(0).mx(12).mt(12).p(8).gap(8).rounded(16).bg(p.card)
       .child(h_flex().id("riff-ask-head").px(4).pt(2).gap(6).items_center()
         .when(compact, (el) => el.cursor_pointer().on_mouse_down("left", (_e, cx) => { this.askOpen = !this.askOpen; cx.notify(); }))
         .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(p.muted).child(compact ? "Ask an agent for a riff" : title))
         .when(compact, (el) => el.child(svg(ICON(open ? "chevron-down" : "chevron-right")).size(12).flex_none().text_color(p.faint))))
+      .when(open && !compact, (el) => el.child(div().px(4).text_size(11.5).text_color(p.faint).child("Agents ask here, with live sliders.")))
       .when(open && !!this.promptOpen, (el) => el
         .child(div().w_full().min_w(0).px(10).py(8).rounded(8).bg(p.ground).text_size(11.5).text_color(p.muted).child(SAMPLE)))
       .when(open, (el) => el
@@ -612,7 +607,7 @@ export class Riff {
           .child(textBtn(p, "riff-prompt", this.promptOpen ? "Hide prompt" : "Show prompt", (_e, cx) => { this.promptOpen = !this.promptOpen; cx.notify(); }))
           .child(btn("riff-copy", this.copied ? "Copied" : "Copy prompt", (cx) => {
             cx.spawn(async (cx) => {
-              await exec("/bin/sh", ["-c", 'printf %s "$1" | pbcopy', "sh", SAMPLE]).catch(() => null);
+              await copyPrompt(SAMPLE);
               this.copied = true; cx.notify();
               await new Promise((r) => cx.timer.after(1500, r));
               this.copied = false; cx.notify();

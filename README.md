@@ -20,6 +20,12 @@ what is running where, and lets an agent ask you a visual question and get your 
 
 Everything in the images is made-up demo data (`herdr-app do kanban.demo`).
 
+## Requirements
+
+- [Herdr](https://herdr.dev) (tested with 0.1.15). The board is a layout and a set of mods that run inside it.
+- `python3` and `git`. Everything else is optional and the panel says what it needs: the `gh` CLI for GitHub tasks,
+  a Linear key, Claude Code for Jira, Xcode for the simulator list, `adb` for Android.
+
 ## Install
 
 ```sh
@@ -147,6 +153,21 @@ GitHub's `issues`, `closed`, `prs` and `reviews` are GitHub search queries; `rec
 back closed work shows. Jira refreshes every `refresh_minutes` in work hours, the others every `fast_minutes`
 (5). See what the panel will show: `python3 -I ~/.config/herdr-app/mods/kanban/tasks-sync.py config`.
 
+### Setting up Tasks with an agent
+
+With nothing connected, the panel's "Connect your tasks" card lists GitHub, Linear and Jira, with a
+**Connect** button where this machine can run it. Below that, three prompts hand the setup to an agent, each
+with **Copy** and **Ask** (one Ask button per agent in the tab, when you're on a pane that isn't an agent):
+
+| Prompt | What the agent does |
+|---|---|
+| Set up my tasks | Reads `tasks-sync.py --help` and `config`, asks where your tasks come from, runs `tasks-sync.py connect <source> on` and `sync`, and tells you how to store a Linear key yourself (it never asks you to paste one) |
+| Connect Jira | Runs the `herdr-agent-board:setup` skill if it has it, or finds your site and cloudId, picks a preset from your recent tickets, writes `jira.json` and checks it with `jira-sync.py config`; it asks before changing anything in Jira |
+| Add my to-dos | Turns what's left to do in the conversation into tasks of your own with `tasks-sync.py add "<title>"` |
+
+The prompts point at the tools' own help, so they work in any agent (Codex, Gemini, anything that can run a
+command), and in a Claude Code session that started before the plugin was installed.
+
 ## Tasks panel: Jira presets
 
 `jira.json` names a preset from `mods/kanban/presets/jira/` and fills its vars:
@@ -236,8 +257,12 @@ writes to Jira.
 ## Demo mode
 
 `herdr-app do kanban.demo` fills every panel with made-up data (a fictional "Acme" with cards,
-tickets and costs), for screenshots or to try the board before setting anything up. Run it again to
-go back. It makes no Jira calls and changes nothing.
+tickets, dev servers, simulators, saved prompts and a Claude usage history), for screenshots or to try the
+board before setting anything up. Nothing on your machine shows while it's on: not your ports, folders, phones,
+projects or spend. Run it again to go back. It makes no Jira calls and changes nothing.
+
+One thing it can't hide: the terminal panes themselves, which are your real terminals. Take screenshots of the board
+view (nothing but cards and panels), or run the app in a space with nothing private in it.
 
 ## Keys
 
@@ -254,6 +279,13 @@ leave it alone.
 
 `herdr-app do kanban.tasks_<tab id>` opens the Tasks panel on a tab (for example `kanban.tasks_dev`),
 and can be bound to a key in `keys.json`. `herdr-app do kanban.riff_open` opens Riff (and never closes it).
+
+## Contributing
+
+Issues and pull requests are welcome. If you changed something in Herdr directly, `./install.sh --pull` copies it back
+into the repo. Before opening a pull request, run `herdr-app check mods/kanban` and `herdr-app check mods/kanban-pane`
+(they load a mod once and report what's wrong), and keep demo mode working: anything a panel reads from your
+machine needs a made-up stand-in in `mods/kanban/demo.js`.
 
 ## Credits
 

@@ -167,3 +167,104 @@ export const DEMO_USAGE = {
     "claude-sonnet-5-5": { input: 900, output: 160000, cache_read: 6200000, cache_write: 310000, messages: 120, cost: 2.31 },
   },
 };
+
+// ---- Dev panel in demo mode: made-up servers, simulators and devices, so a screenshot never shows the
+// ports, folders or phones on your machine. (rail.js)
+export const DEMO_DEV_SERVERS = [
+  { id: "web", name: "Web", project: "acme-store", port: 3000 },
+  { id: "storybook", name: "Storybook", project: "acme-ui", port: 6006 },
+  { id: "metro", name: "Metro", project: "acme-mobile", port: 8081 },
+  { id: "api", name: "API", project: "acme-api", port: 4000 },
+];
+export const DEMO_LISTEN = [
+  { port: 3000, pid: "1", cmd: "node", cwd: "~/code/acme-store" },
+  { port: 5173, pid: "2", cmd: "node", cwd: "~/code/acme-docs" },
+  { port: 6006, pid: "3", cmd: "node", cwd: "~/code/acme-ui" },
+  { port: 8081, pid: "4", cmd: "node", cwd: "~/code/acme-mobile" },
+];
+export const DEMO_SIMS = [
+  { udid: "demo-1", name: "iPhone 17 Pro", os: "iOS 27.0", v: 2700, booted: true, iphone: true },
+  { udid: "demo-2", name: "iPhone 17", os: "iOS 27.0", v: 2700, booted: false, iphone: true },
+  { udid: "demo-3", name: "iPhone Air", os: "iOS 27.0", v: 2700, booted: false, iphone: true },
+];
+export const DEMO_PHONES = [{ name: "Demo iPhone", os: "iOS 27.0", online: true }];
+export const DEMO_AVDS = ["Pixel_9_API_35"];
+
+// ---- Saved prompts in demo mode (prompts.js): generic, not yours.
+export const DEMO_PROMPTS = [
+  { label: "Run tests and fix", text: "Run the tests for what you changed and fix any failures." },
+  { label: "Typecheck and lint", text: "Run typecheck and lint, then fix what fails." },
+  { label: "Status update", text: "In a few lines: what have you changed so far, what's left, and is anything blocking you?" },
+  { label: "Review the diff", text: "Review the current uncommitted diff for bugs, before I commit." },
+];
+
+// ---- The usage window in demo mode (usage.js): a made-up history in the shape of usage.json, so the stats
+// window never shows your real projects, sessions or spend. Everything is computed from a fixed formula;
+// the prices are illustrative, not Anthropic's.
+const U_MODELS = [
+  { id: "claude-opus-5-5", share: 0.7, rate: { input: 5, output: 25, cache_5m: 6.25, cache_1h: 10, cache_read: 0.5 } },
+  { id: "claude-sonnet-5-5", share: 0.25, rate: { input: 3, output: 15, cache_5m: 3.75, cache_1h: 6, cache_read: 0.3 } },
+  { id: "claude-haiku-5-5", share: 0.05, rate: { input: 1, output: 5, cache_5m: 1.25, cache_1h: 2, cache_read: 0.1 } },
+];
+const U_PROJECTS = [["acme-store", 0.38], ["acme-mobile", 0.27], ["acme-ui", 0.17], ["acme-docs", 0.1], ["acme-api", 0.08]];
+const U_TITLES = ["Checkout: save card for later", "Product page: new image gallery", "Fix Android back gesture on cart sheet", "Onboarding: three-step welcome", "Tokens: dark theme surfaces", "Search results empty state", "Button: add loading state", "Header: sticky on scroll", "Order history filters", "Settings: notification toggles", "Icon set: 1.75 stroke pass", "Footer links audit"];
+const U_AGENTS = [["code-reviewer", 0.4], ["test-writer", 0.3], ["planner", 0.2], ["explorer", 0.1]];
+const pr = (n) => { const x = Math.sin(n * 12.9898) * 43758.5453; return x - Math.floor(x); }; // fixed pseudo-random in [0, 1)
+const iso = (t) => new Date(t).toISOString().slice(0, 10);
+
+function usageRange(rows, now) {
+  const mods = U_MODELS.map((m) => ({ model: m.id, replies: 0, input: 0, output: 0, cache_read: 0, cache_5m: 0, cache_1h: 0, sessions: 0, cost: 0, unc: 0 }));
+  const series = rows.map((row) => {
+    const s = { key: row.key, tokens: 0, fresh: 0, cost: 0, models: {}, costs: {} };
+    const fresh = row.a * 9e6 * row.n;
+    U_MODELS.forEach((m, i) => {
+      const f = fresh * m.share;
+      const u = { input: f * 0.04, output: f * 0.3, cache_5m: f * 0.56, cache_1h: f * 0.1, cache_read: f * 45 };
+      const cost = (u.input * m.rate.input + u.output * m.rate.output + u.cache_5m * m.rate.cache_5m + u.cache_1h * m.rate.cache_1h + u.cache_read * m.rate.cache_read) / 1e6;
+      const tokens = f + u.cache_read;
+      s.tokens += tokens; s.fresh += f; s.cost += cost; s.models[m.id] = Math.round(tokens); s.costs[m.id] = cost;
+      const t = mods[i];
+      for (const k of ["input", "output", "cache_5m", "cache_1h", "cache_read"]) t[k] += u[k];
+      t.cost += cost; t.replies += f / 9000; t.sessions += Math.max(1, row.a * 6 * row.n * m.share);
+      t.unc += ((u.input + u.cache_5m + u.cache_1h + u.cache_read) * m.rate.input + u.output * m.rate.output) / 1e6;
+    });
+    return s;
+  });
+  const sum = (k) => mods.reduce((n, m) => n + m[k], 0);
+  const tot = { replies: Math.round(sum("replies")), input: Math.round(sum("input")), output: Math.round(sum("output")), cache_read: Math.round(sum("cache_read")), cache_5m: Math.round(sum("cache_5m")), cache_1h: Math.round(sum("cache_1h")), sessions: Math.round(sum("sessions")), first_day: rows[0].first, last_day: rows[rows.length - 1].last, cost: sum("cost"), cost_uncached: sum("unc"), cache_saved: sum("unc") - sum("cost") };
+  const tokens = series.reduce((n, s) => n + s.tokens, 0), freshAll = series.reduce((n, s) => n + s.fresh, 0), cost = tot.cost;
+  const sessions = Array.from({ length: 12 }, (_, i) => {
+    const [proj] = U_PROJECTS[i % U_PROJECTS.length];
+    const c = (cost / 14) * (1 - i * 0.06);
+    return { id: `demo${String(i).padStart(4, "0")}`, tokens: Math.round((tokens / 14) * (1 - i * 0.06)), fresh: Math.round((freshAll / 14) * (1 - i * 0.06)), replies: Math.round(tot.replies / 18) + i, model: i % 4 === 3 ? "claude-sonnet-5-5" : "claude-opus-5-5", last: now - (i * 7 + 2) * 3600e3, subagent_tokens: i % 3 === 0 ? Math.round(freshAll / 90) : 0, title: U_TITLES[i % U_TITLES.length], project: `~/code/${proj}`, cwd: `~/code/${proj}`, cost: c };
+  });
+  return {
+    totals: tot,
+    models: mods.map(({ unc, ...m }) => ({ ...m, replies: Math.round(m.replies), input: Math.round(m.input), output: Math.round(m.output), cache_read: Math.round(m.cache_read), cache_5m: Math.round(m.cache_5m), cache_1h: Math.round(m.cache_1h), sessions: Math.round(m.sessions) })).sort((a, b) => b.cost - a.cost),
+    series: series.map((s) => ({ ...s, tokens: Math.round(s.tokens), fresh: Math.round(s.fresh) })),
+    projects: U_PROJECTS.map(([p, w], i) => ({ project: `~/code/${p}`, cwd: `~/code/${p}`, tokens: Math.round(tokens * w), fresh: Math.round(freshAll * w), replies: Math.round(tot.replies * w), sessions: Math.max(1, Math.round(tot.sessions * w)), cost: cost * w })),
+    sessions,
+    hours: Array.from({ length: 24 }, (_, h) => Math.round(freshAll * Math.max(0, Math.exp(-(((h - 14) / 4.5) ** 2)) * (0.8 + 0.4 * pr(h + 3))) / 40)),
+    agents: U_AGENTS.map(([a, w], i) => ({ agent: a, tokens: Math.round(freshAll * w * 0.3), replies: Math.round(tot.replies * w * 0.25), cost: cost * w * 0.12 })),
+  };
+}
+
+let usageCache = null;
+export function demoUsageStats() {
+  const now = Date.now(), day = iso(now);
+  if (usageCache?.day === day) return usageCache.v;
+  const days = (n) => Array.from({ length: n }, (_, i) => {
+    const t = now - (n - 1 - i) * 864e5, dow = new Date(t).getUTCDay();
+    const a = (0.25 + 0.75 * pr(i + n)) * (dow === 0 || dow === 6 ? 0.25 : 1);
+    return { key: iso(t), first: iso(t), last: iso(t), a, n: 1 };
+  });
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const t = new Date(now); t.setUTCDate(1); t.setUTCMonth(t.getUTCMonth() - (5 - i));
+    return { key: iso(t.getTime()).slice(0, 7), first: iso(t.getTime()), last: iso(t.getTime()), a: 0.3 + 0.12 * i, n: 22 };
+  });
+  const d7 = days(7), d30 = days(30);
+  const range = (rows, first) => { const r = usageRange(rows, now); r.totals.first_day = first ?? rows[0].first; r.totals.last_day = day; return r; };
+  const v = { at: now, today: day, imported: 0, seconds: 0, db: "", unpriced: [], models: DEMO_USAGE.models, ranges: { today: range([{ ...d7[6], a: 0.45 }]), "7d": range(d7), "30d": range(d30), all: range(months, months[0].first) } };
+  usageCache = { day, v };
+  return v;
+}

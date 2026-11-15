@@ -98,9 +98,9 @@ def availability():
     """{source: {"ok": bool, "why": str}}: whether each outside source can work here. A source that
     can't is left out of the panel (and the Tasks tab hides if nothing is left); the panel says why."""
     return {
-        "jira": {"ok": have("claude"), "why": "Needs Claude Code (the claude command) with the Atlassian connector"},
-        "github": {"ok": have("gh"), "why": "Needs the GitHub CLI (gh), signed in"},
-        "linear": {"ok": bool(os.environ.get("LINEAR_API_KEY")) or keychain_has_linear(), "why": "Needs a Linear API key ($LINEAR_API_KEY, or the Keychain item herdr-board-linear)"},
+        "jira": {"ok": have("claude"), "why": "Needs Claude Code"},
+        "github": {"ok": have("gh"), "why": "Needs gh, signed in"},
+        "linear": {"ok": bool(os.environ.get("LINEAR_API_KEY")) or keychain_has_linear(), "why": "Needs a Linear API key"},
     }
 
 

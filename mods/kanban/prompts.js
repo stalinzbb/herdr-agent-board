@@ -8,6 +8,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, props, closeOverlay, notify } from "herdr";
 import { ICON, STATUS, pal, tint, readConfig, editConfig, iconBtn, button, dot } from "./ui.js";
+import { demo, DEMO_PROMPTS } from "./demo.js";
 
 const STATE = {
   blocked: { word: "waiting on you", color: STATUS.blocked },
@@ -24,7 +25,7 @@ export class Prompts {
 
   start(cx) {
     cx.spawn(async (cx) => {
-      const cfg = await readConfig("prompts", { prompts: [] });
+      const cfg = demo() ? { prompts: DEMO_PROMPTS } : await readConfig("prompts", { prompts: [] });
       this.list = cfg.prompts ?? [];
       this.error = cfg.error;
       cx.notify();

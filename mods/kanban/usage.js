@@ -5,7 +5,7 @@ import { div, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { exec, run, home, appHome, readTextFile, watchFolder, openOverlay, closeOverlay, props } from "herdr";
 import { pal, ago, ICON, readConfig } from "./ui.js";
-import { demo, DEMO_USAGE } from "./demo.js";
+import { demo, DEMO_USAGE, demoUsageStats } from "./demo.js";
 
 const CACHE = () => `${home()}/.cache/herdr-kanban`;
 const fmt = (n) => (n >= 1e9 ? `${+(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `${+(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n));
@@ -150,7 +150,7 @@ export class UsageStats {
 
   render() {
     const p = pal();
-    const d = this.data;
+    const d = demo() ? demoUsageStats() : this.data;
     const shell = v_flex().id("usage-stats")
       .when(!!this.focus, (el) => el.track_focus(this.focus).on_key_down((e, cx) => { if (e?.keystroke === "escape") this.close(); })).size_full().bg(p.popover).text_color(p.ink).rounded(16).border_1().border_color(p.line);
     if (!d?.ranges) return shell.p(20).text_size(13).text_color(p.faint).child("Reading Claude's logs… the first import takes about 15 seconds.");
