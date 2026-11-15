@@ -599,11 +599,7 @@ export class Riff {
         .when(compact, (el) => el.cursor_pointer().on_mouse_down("left", (_e, cx) => { this.askOpen = !this.askOpen; cx.notify(); }))
         .child(div().flex_1().min_w(0).truncate().text_size(12.5).text_color(p.muted).child(compact ? "Ask an agent for a riff" : title))
         .when(compact, (el) => el.child(svg(ICON(open ? "chevron-down" : "chevron-right")).size(12).flex_none().text_color(p.faint))))
-      // What a riff is, and how to get one: this is the first thing people see, before any agent has asked.
-      .when(open && !compact, (el) => el.child(div().px(4).text_size(11.5).text_color(p.faint)
-        .child("An agent asks you a visual question here, with live sliders, and your answer goes back to it. Any agent that can run a command can ask.")))
-      .when(open && !compact && targets.length === 0, (el) => el.child(div().px(4).text_size(11.5).text_color(p.muted)
-        .child("Copy the prompt and paste it into an agent, or click an agent's pane first to send it from here.")))
+      .when(open && !compact, (el) => el.child(div().px(4).text_size(11.5).text_color(p.faint).child("Agents ask here, with live sliders.")))
       .when(open && !!this.promptOpen, (el) => el
         .child(div().w_full().min_w(0).px(10).py(8).rounded(8).bg(p.ground).text_size(11.5).text_color(p.muted).child(SAMPLE)))
       .when(open, (el) => el

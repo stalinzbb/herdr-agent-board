@@ -115,27 +115,21 @@ export class Jira {
   // button; one that can't says what it needs. Jira also needs its site set up, which setup does.
   connectCard(p) {
     const av = this.cfg.available ?? {};
-    const rows = [
-      ["github", "GitHub", "Issues and pull requests that need you"],
-      ["linear", "Linear", "Issues assigned to you"],
-      ["jira", "Jira", "Through Claude Code's Atlassian connector"],
-    ];
+    const rows = [["github", "GitHub", "Issues and PRs"], ["linear", "Linear", "Issues"], ["jira", "Jira", "Via Claude Code"]];
     return v_flex().flex_none().mx(12).mb(4).p(10).gap(8).rounded(10).bg(p.card)
-      .child(div().text_size(12).text_color(p.muted).child("Where do your tasks come from? Your own tasks work without any of these: use +."))
+      .child(div().text_size(12.5).font_medium().text_color(p.ink).child("Connect your tasks"))
       .children(rows.map(([id, name, about]) => {
         const a = av[id] ?? { ok: true };
         return h_flex().id(`conn-${id}`).gap(8).items_center()
           .child(v_flex().flex_1().min_w(0)
             .child(div().text_size(12.5).text_color(p.ink).child(name))
             .child(div().text_size(11).text_color(p.faint).child(a.ok ? about : a.why)))
-          .when(a.ok && id !== "jira", (el) => el.child(button(p, `conn-go-${id}`, "Connect", (_e, cx) => this.connectSource(id, cx), { variant: "secondary" })))
-          .when(a.ok && id === "jira", (el) => el.child(div().flex_none().text_size(11).text_color(p.faint).child("Needs the setup skill, or an agent")));
+          .when(a.ok && id !== "jira", (el) => el.child(button(p, `conn-go-${id}`, "Connect", (_e, cx) => this.connectSource(id, cx), { variant: "secondary" })));
       }))
-      // Setting up by hand is fiddly (a key in the Keychain, Jira's site and preset), so any agent can do it:
-      // a prompt that tells it what to run and what to ask, to copy or to send to the agent you are on.
+      // Any agent can do the setup: a prompt to copy, or to send to the agent you're on.
       .child(div().h(1).w_full().bg(p.line))
-      .child(div().text_size(12).text_color(p.muted).child(askTargets().length ? "Or have an agent set it up with you" : "Or have an agent set it up: copy a prompt, or click an agent's pane first"))
-      .children(TASK_PROMPTS.map(([label, about, text], i) => promptRow(p, `task-prompt-${i}`, label, about, text, "Asked to set up Tasks")));
+      .child(div().text_size(12.5).font_medium().text_color(p.ink).child("Ask an agent"))
+      .children(TASK_PROMPTS.map(([label, text], i) => promptRow(p, `task-prompt-${i}`, label, text, "Asked to set up Tasks")));
   }
 
   has(source) {

@@ -155,9 +155,9 @@ back closed work shows. Jira refreshes every `refresh_minutes` in work hours, th
 
 ### Setting up Tasks with an agent
 
-With nothing connected, the panel's "Where do your tasks come from?" card lists GitHub, Linear and Jira, with a
+With nothing connected, the panel's "Connect your tasks" card lists GitHub, Linear and Jira, with a
 **Connect** button where this machine can run it. Below that, three prompts hand the setup to an agent, each
-with **Copy prompt** and **Ask this agent** (or one button per agent in the tab, when you're on another pane):
+with **Copy** and **Ask** (one Ask button per agent in the tab, when you're on a pane that isn't an agent):
 
 | Prompt | What the agent does |
 |---|---|
@@ -226,7 +226,7 @@ DialKit-shaped controls, and get JSON back. The skill covers live previews for w
 the iOS simulator, Flutter and desktop apps, and short rounds where there's no preview. You can also
 just say "riff me the card spacing".
 
-With nothing open, the Riff tab says what a riff is and offers a prompt to send: **Ask this agent** on an agent's pane, or one
+With nothing open, the Riff tab offers a prompt to send: **Ask this agent** on an agent's pane, or one
 button per agent in the tab when you're on another pane (a dev server, a simulator). The prompt points
 the agent at `riff.py --help`, which has everything it needs, so it works in any agent (Codex, Gemini,
 anything that can run a command), and in a Claude Code session that started before the plugin was
